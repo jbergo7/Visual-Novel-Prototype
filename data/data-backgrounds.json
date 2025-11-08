@@ -30,5 +30,12 @@
         "action": { "type": "scene", "target": "scene_1" }
       }
     ]
+  },
+
+  "restroom": {
+    "image": "assets/bg_restroom.jpg"
+  },
+  "kitchen": {
+    "image": "assets/bg_kitchen.jpg"
   }
 }
