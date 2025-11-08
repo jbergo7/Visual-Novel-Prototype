@@ -1,7 +1,6 @@
 {
   "home": {
     "image": "assets/bg_home.jpg",
-    "transition": "fade",
     "buttons": [
       {
         "id": "shop",
@@ -43,6 +42,20 @@
         "height": 80,
         "text": "Go Home",
         "action": { "type": "background", "target": "home" }
+      },
+      {
+        "id": "buy_grocery",
+        "x": 1150,
+        "y": 160,
+        "width": 250,
+        "height": 80,
+        "text": "Buy Grocery",
+        "action": {
+          "type": "background",
+          "target": "grocery",
+          "energy": -10,
+          "money": -30
+        }
       }
     ]
   },
