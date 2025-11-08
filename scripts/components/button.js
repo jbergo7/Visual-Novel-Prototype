@@ -10,12 +10,12 @@ export class Button {
     this.height = data.height || 60;
 
     this.base = { ...data };
-    this.fontSize = 20; // initial
-    this.minFontSize = 12; // minimum clamp
-    this.maxFontSize = 48; // maximum clamp
+    this.fontSize = 20;
+    this.minFontSize = 12;
+    this.maxFontSize = 48;
 
-    // store listener reference
     this.clickHandler = null;
+    this.active = false; // track if button should respond
   }
 
   resize(scale) {
@@ -28,11 +28,9 @@ export class Button {
   }
 
   render(ctx) {
-    // Draw button background
     ctx.fillStyle = "rgba(54, 54, 54, 0.6)";
     ctx.fillRect(this.x, this.y, this.width, this.height);
 
-    // Draw text
     ctx.fillStyle = "#fff";
     ctx.font = `${this.fontSize}px Arial`;
     ctx.textAlign = "center";
@@ -50,10 +48,12 @@ export class Button {
   }
 
   addClickListener(callback) {
-    // Remove old listener
-    this.removeClickListener();
+    this.removeClickListener(); // ensure old listener removed
+    this.active = true;
 
     this.clickHandler = (e) => {
+      if (!this.active) return;
+
       const rect = this.core.canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
@@ -68,6 +68,7 @@ export class Button {
 
   removeClickListener() {
     if (this.clickHandler) {
+      this.active = false;
       this.core.canvas.removeEventListener("click", this.clickHandler);
       this.clickHandler = null;
     }

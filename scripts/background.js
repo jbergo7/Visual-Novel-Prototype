@@ -9,7 +9,6 @@ export class Background {
     this.image = null;
     this.buttons = [];
 
-    // Always use global header
     if (!core.header) {
       core.header = new Header(core);
     }
@@ -32,23 +31,29 @@ export class Background {
         return;
       }
 
-      // Preload new image
+      // Preload image
       const newImg = new Image();
       newImg.src = this.bgData.image;
       await new Promise((resolve) => (newImg.onload = resolve));
-
-      // Only update image when loaded
       this.image = newImg;
 
-      // Create buttons for this background
+      // Remove old buttons before creating new ones
+      this.unload();
+
+      // Create new buttons
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
         const btn = new Button(this.core, btnData);
+
         btn.addClickListener(async () => {
           if (this.isLoading) return;
+
           const action = btn.data?.action;
           if (!action) return;
 
           this.isLoading = true;
+
+          // Remove current buttons immediately to prevent lingering clicks
+          this.unload();
 
           switch (action.type) {
             case "background": {
@@ -72,6 +77,7 @@ export class Background {
 
           this.isLoading = false;
         });
+
         return btn;
       });
 
@@ -84,10 +90,10 @@ export class Background {
   }
 
   unload() {
-    // Only remove button listeners
+    // Remove all button listeners
     this.buttons.forEach((btn) => btn.removeClickListener());
     this.buttons = [];
-    // Do NOT remove header
+    // Header stays persistent
   }
 
   onResize(scale) {
@@ -111,7 +117,7 @@ export class Background {
   render(ctx) {
     const canvas = this.core.canvas;
 
-    // Always draw background first
+    // Draw background
     if (this.image) {
       ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
     } else {
@@ -119,7 +125,7 @@ export class Background {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Draw header on top
+    // Draw header
     this.header?.render(ctx);
 
     // Draw buttons on top

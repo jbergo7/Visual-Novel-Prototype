@@ -1,6 +1,7 @@
 {
   "home": {
     "image": "assets/bg_home.jpg",
+    "transition": "fade",
     "buttons": [
       {
         "id": "shop",
@@ -9,7 +10,7 @@
         "width": 250,
         "height": 80,
         "text": "Shop",
-        "action": { "type": "background", "target": "shop_area" }
+        "action": { "type": "background", "target": "grocery" }
       },
       {
         "id": "rest",
@@ -31,7 +32,20 @@
       }
     ]
   },
-
+  "grocery": {
+    "image": "assets/bg_grocery.jpg",
+    "buttons": [
+      {
+        "id": "home",
+        "x": 200,
+        "y": 360,
+        "width": 250,
+        "height": 80,
+        "text": "Go Home",
+        "action": { "type": "background", "target": "home" }
+      }
+    ]
+  },
   "restroom": {
     "image": "assets/bg_restroom.jpg"
   },
