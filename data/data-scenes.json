@@ -2,15 +2,9 @@
   "prologue": {
     "background": "home",
     "dialogues": [
-      { "speaker": "Narrator", "text": "Sa isang tahimik na baryo..." },
-      { "speaker": "Narrator", "text": "Si Andrea ay isang masipag na bata." },
       {
         "speaker": "Narrator",
         "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento."
-      },
-      {
-        "speaker": "Narrator",
-        "text": "Ininspect ni Andrea ang apartment at chineck niya isa-isa ang mga silid."
       },
       { "background": "kitchen" },
       {
@@ -21,9 +15,38 @@
       {
         "speaker": "Narrator",
         "text": "Tahimik ang paligid, at ang simoy ng hangin ay malamig."
+      },
+      {
+        "speaker": "Narrator",
+        "text": "Ang bill weekly ng rent ay 50 pesos. Tatangapin ba ni Andrea o mag hanap siya ng mas mura?"
+      },
+      {
+        "choices": [
+          { "text": "Nagbayad si Andrea ng 50 sa unang bayad", "money": -50 },
+          {
+            "text": "Maghanap ng mas murang rent",
+            "goto_scene": "prologue_lowbudget"
+          }
+        ]
+      },
+      {
+        "speaker": "Narrator",
+        "text": "Sumangayon si andrea sa deal at dito na siya nangupahan"
       }
     ],
     "goto": "home"
+  },
+  "prologue_lowbudget": {
+    "background": "dirtyapartment",
+    "dialogues": [
+      { "speaker": "Andrea", "text": "Dito mukang ok na dito atleast mura" },
+      {
+        "speaker": "Narrator",
+        "text": "Nagbayad si Andrea sa Landlord ng 20 sa unang rent"
+      },
+      { "money": -20 }
+    ],
+    "goto": "dirtyapartment"
   },
   "scene_1": {
     "background": "home",

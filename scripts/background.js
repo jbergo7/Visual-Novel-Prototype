@@ -8,96 +8,110 @@ export class Background {
     this.bgData = null;
     this.image = null;
     this.buttons = [];
-    this.header = new Header(core);
-    this.scale = 1;
 
-    // Flag para i-disable click habang naglo-load
+    // Always use global header
+    if (!core.header) {
+      core.header = new Header(core);
+    }
+    this.header = core.header;
+
+    this.scale = 1;
     this.isLoading = false;
   }
 
   async load() {
     this.isLoading = true;
 
-    const res = await fetch("./data/data-backgrounds.json");
-    const data = await res.json();
-    this.bgData = data[this.backgroundId];
+    try {
+      const res = await fetch("./data/data-backgrounds.json");
+      const data = await res.json();
+      this.bgData = data[this.backgroundId];
 
-    if (!this.bgData) {
-      console.error(`Background '${this.backgroundId}' not found.`);
-      this.isLoading = false;
-      return;
-    }
+      if (!this.bgData) {
+        console.error(`Background '${this.backgroundId}' not found.`);
+        return;
+      }
 
-    // Load background image
-    this.image = new Image();
-    this.image.src = this.bgData.image;
-    await new Promise((resolve) => (this.image.onload = resolve));
+      // Preload new image
+      const newImg = new Image();
+      newImg.src = this.bgData.image;
+      await new Promise((resolve) => (newImg.onload = resolve));
 
-    // Remove old listeners
-    this.unload();
+      // Only update image when loaded
+      this.image = newImg;
 
-    // Create buttons
-    this.buttons = this.bgData.buttons.map((btnData) => {
-      const btn = new Button(this.core, btnData);
-      btn.addClickListener(async () => {
-        if (this.isLoading) return; // ignore clicks while loading
-        const action = btn.data?.action;
-        if (!action) return;
+      // Create buttons for this background
+      this.buttons = (this.bgData.buttons || []).map((btnData) => {
+        const btn = new Button(this.core, btnData);
+        btn.addClickListener(async () => {
+          if (this.isLoading) return;
+          const action = btn.data?.action;
+          if (!action) return;
 
-        // Start loading new scene/background
-        this.isLoading = true;
+          this.isLoading = true;
 
-        switch (action.type) {
-          case "background": {
-            this.unload();
-            const bgModule = await import("./background.js");
-            const bg = new bgModule.Background(this.core, action.target);
-            await bg.load();
-            this.core.setActiveScene(bg);
-            break;
+          switch (action.type) {
+            case "background": {
+              const bgModule = await import("./background.js");
+              const bg = new bgModule.Background(this.core, action.target);
+              await bg.load();
+              this.core.setActiveScene(bg);
+              break;
+            }
+            case "scene": {
+              const sceneModule = await import("./scene.js");
+              const scene = new sceneModule.Scene(this.core, action.target);
+              await scene.load();
+              this.core.setActiveScene(scene);
+              break;
+            }
+            case "function":
+              this.executeGameFunction(action.name);
+              break;
           }
-          case "scene": {
-            this.unload();
-            const sceneModule = await import("./scene.js");
-            const scene = new sceneModule.Scene(this.core, action.target);
-            await scene.load();
-            this.core.setActiveScene(scene);
-            break;
-          }
-          case "function":
-            this.executeGameFunction(action.name);
-            break;
-        }
 
-        this.isLoading = false;
+          this.isLoading = false;
+        });
+        return btn;
       });
-      return btn;
-    });
 
-    this.onResize(this.scale);
-    this.isLoading = false;
+      this.onResize(this.scale);
+    } catch (err) {
+      console.error("Failed to load background:", err);
+    } finally {
+      this.isLoading = false;
+    }
   }
 
   unload() {
+    // Only remove button listeners
     this.buttons.forEach((btn) => btn.removeClickListener());
+    this.buttons = [];
+    // Do NOT remove header
   }
 
   onResize(scale) {
     this.scale = scale;
     this.buttons.forEach((btn) => btn.resize(scale));
-    if (this.header?.onResize) this.header.onResize(scale);
+    this.header?.onResize(scale);
   }
 
   executeGameFunction(name) {
-    if (name === "restPlayer") {
-      console.log("Player is resting... energy restored!");
-      // TODO: update character energy
+    const c = this.core.currentCharacter;
+    if (!c) return;
+
+    switch (name) {
+      case "restPlayer":
+        c.energy = 100;
+        console.log(`${c.name} energy restored to ${c.energy}`);
+        break;
     }
   }
 
   render(ctx) {
     const canvas = this.core.canvas;
 
+    // Always draw background first
     if (this.image) {
       ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
     } else {
@@ -105,7 +119,10 @@ export class Background {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
+    // Draw header on top
     this.header?.render(ctx);
+
+    // Draw buttons on top
     this.buttons.forEach((btn) => btn.render(ctx));
   }
 

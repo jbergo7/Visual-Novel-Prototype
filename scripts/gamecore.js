@@ -8,6 +8,8 @@ export class GameCore {
 
     this.scaleRatio = 1;
     this.activeScene = null;
+
+    // Runtime global character data
     this.characters = [];
     this.currentCharacter = null;
 
@@ -22,13 +24,17 @@ export class GameCore {
 
   async loadCharacters() {
     const res = await fetch("./data/data-characters.json");
-    this.characters = await res.json();
+    const data = await res.json();
+
+    // Deep copy for runtime so original JSON is untouched
+    this.characters = data.map((ch) => ({ ...ch }));
     this.currentCharacter =
       this.characters.find((ch) => ch.default === true) || this.characters[0];
+
+    console.log("Runtime character data loaded:", this.characters);
   }
 
   resizeCanvas() {
-    // Maintain aspect ratio of 1080x1920
     const aspect = this.baseWidth / this.baseHeight;
     let newWidth = window.innerWidth;
     let newHeight = window.innerHeight;
