@@ -1,56 +1,103 @@
 export class PopupNotif {
   constructor(core) {
     this.core = core;
-    this.message = "";
-    this.visible = false;
-    this.alpha = 0;
-    this.y = 50; // starting Y position
+    this.popups = [];
+    this.scale = 1;
+
+    // Base values for layout
+    this.baseFontSize = 28;
+    this.baseWidth = 420;
+    this.baseHeight = 60;
+    this.baseSpacing = 10;
+    this.baseY = 50;
   }
 
-  show(message) {
-    this.message = message;
-    this.visible = true;
-    this.alpha = 1;
-    this.y = 50;
+  show(message, color = null) {
+    const popup = {
+      message,
+      color: this.resolveColor(color),
+      alpha: 1,
+      yOffset: 0,
+    };
 
-    // Auto hide after 2 seconds
+    this.popups.push(popup);
+
+    // Auto remove after 2 seconds
     setTimeout(() => {
-      this.fadeOut();
+      this.fadeOut(popup);
     }, 2000);
   }
 
-  fadeOut() {
+  resolveColor(colorName) {
+    switch (colorName) {
+      case "red":
+        return "rgba(200, 50, 50, 0.85)";
+      case "green":
+        return "rgba(50, 180, 90, 0.85)";
+      case "blue":
+        return "rgba(60, 120, 200, 0.85)";
+      case "gold":
+        return "rgba(220, 180, 60, 0.85)";
+      default:
+        return "rgba(0, 0, 0, 0.6)";
+    }
+  }
+
+  fadeOut(popup) {
     const fadeInterval = setInterval(() => {
-      this.alpha -= 0.05;
-      this.y -= 1; // move slightly upward while fading
-      if (this.alpha <= 0) {
+      popup.alpha -= 0.05;
+      popup.yOffset -= 0.4 * this.scale;
+      if (popup.alpha <= 0) {
         clearInterval(fadeInterval);
-        this.visible = false;
-        this.alpha = 0;
+        this.popups = this.popups.filter((p) => p !== popup);
       }
     }, 50);
   }
 
+  onResize(scale) {
+    // Update scale when the canvas resizes
+    this.scale = scale;
+  }
+
   render(ctx) {
-    if (!this.visible) return;
+    if (this.popups.length === 0) return;
 
     ctx.save();
-    ctx.globalAlpha = this.alpha;
-    ctx.font = "bold 28px Arial";
-    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+
+    const scale = this.scale;
+    const canvas = this.core.canvas;
+
+    // Responsive sizes
+    const popupWidth = this.baseWidth * scale;
+    const popupHeight = this.baseHeight * scale;
+    const spacing = this.baseSpacing * scale;
+    const fontSize = this.baseFontSize * scale;
+    const baseY = this.baseY * scale;
+    const canvasCenter = canvas.width / 2;
+
+    ctx.font = `bold ${fontSize}px Arial`;
     ctx.textAlign = "center";
 
-    // background bubble
-    const width = 400;
-    const height = 60;
-    const x = this.core.canvas.width / 2 - width / 2;
-    const y = this.y;
+    this.popups.forEach((popup, i) => {
+      const y = baseY + i * (popupHeight + spacing) + popup.yOffset;
+      const x = canvasCenter - popupWidth / 2;
 
-    ctx.fillRect(x, y, width, height);
+      ctx.globalAlpha = popup.alpha;
 
-    // text
-    ctx.fillStyle = "white";
-    ctx.fillText(this.message, this.core.canvas.width / 2, y + 38);
+      // Background box
+      ctx.fillStyle = popup.color;
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, popupWidth, popupHeight, 10 * scale);
+        ctx.fill();
+      } else {
+        ctx.fillRect(x, y, popupWidth, popupHeight);
+      }
+
+      // Text
+      ctx.fillStyle = "white";
+      ctx.fillText(popup.message, canvasCenter, y + popupHeight / 1.6);
+    });
 
     ctx.restore();
   }
