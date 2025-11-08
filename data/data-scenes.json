@@ -1,0 +1,10 @@
+{
+  "scene_1": {
+    "background": "home",
+    "dialogues": [
+      { "speaker": "Andrea", "text": "What a beautiful morning..." },
+      { "speaker": "Mika", "text": "You’re early today!" }
+    ],
+    "goto": "home"
+  }
+}

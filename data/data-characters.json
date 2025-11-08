@@ -1,0 +1,21 @@
+[
+  {
+    "id": "andrea",
+    "name": "Andrea",
+    "money": 100,
+    "energy": 100,
+    "default": true
+  },
+  {
+    "id": "mika",
+    "name": "Mika",
+    "money": 80,
+    "energy": 120
+  },
+  {
+    "id": "luna",
+    "name": "Luna",
+    "money": 150,
+    "energy": 90
+  }
+]
