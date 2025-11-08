@@ -9,9 +9,8 @@ export class Background {
     this.image = null;
     this.buttons = [];
 
-    if (!core.header) {
-      core.header = new Header(core);
-    }
+    // Use global header
+    if (!core.header) core.header = new Header(core);
     this.header = core.header;
 
     this.scale = 1;
@@ -31,16 +30,16 @@ export class Background {
         return;
       }
 
-      // Preload image
+      // Preload new image
       const newImg = new Image();
       newImg.src = this.bgData.image;
       await new Promise((resolve) => (newImg.onload = resolve));
       this.image = newImg;
 
-      // Remove old buttons before creating new ones
+      // Remove old buttons
       this.unload();
 
-      // Create new buttons
+      // Create buttons for this background
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
         const btn = new Button(this.core, btnData);
 
@@ -50,10 +49,23 @@ export class Background {
           const action = btn.data?.action;
           if (!action) return;
 
-          this.isLoading = true;
+          // Apply energy and money updates if defined
+          const c = this.core.currentCharacter;
+          if (c) {
+            if (typeof action.energy === "number") {
+              c.energy += action.energy;
+              if (c.energy < 0) c.energy = 0; // prevent negative energy
+              console.log(`${c.name} energy updated: ${c.energy}`);
+            }
+            if (typeof action.money === "number") {
+              c.money += action.money;
+              if (c.money < 0) c.money = 0; // prevent negative money
+              console.log(`${c.name} money updated: ${c.money}`);
+            }
+          }
 
-          // Remove current buttons immediately to prevent lingering clicks
-          this.unload();
+          this.isLoading = true;
+          this.unload(); // remove current buttons immediately
 
           switch (action.type) {
             case "background": {
@@ -90,10 +102,9 @@ export class Background {
   }
 
   unload() {
-    // Remove all button listeners
+    // Remove button listeners
     this.buttons.forEach((btn) => btn.removeClickListener());
     this.buttons = [];
-    // Header stays persistent
   }
 
   onResize(scale) {
@@ -114,6 +125,10 @@ export class Background {
     }
   }
 
+  update() {
+    // No fade for now
+  }
+
   render(ctx) {
     const canvas = this.core.canvas;
 
@@ -128,9 +143,7 @@ export class Background {
     // Draw header
     this.header?.render(ctx);
 
-    // Draw buttons on top
+    // Draw buttons
     this.buttons.forEach((btn) => btn.render(ctx));
   }
-
-  update() {}
 }
