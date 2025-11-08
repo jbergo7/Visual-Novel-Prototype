@@ -112,34 +112,46 @@ export class Scene {
     const bgRes = await fetch("./data/data-backgrounds.json");
     const bgData = await bgRes.json();
     const bg = bgData[bgId];
-    if (bg && bg.image) {
-      const newImg = new Image();
-      newImg.src = bg.image;
-      await new Promise((resolve) => (newImg.onload = resolve));
+    if (!bg || !bg.image) return;
 
-      if (transition === "fade") {
-        const canvas = this.core.canvas;
-        const ctx = this.core.ctx;
-        let alpha = 0;
-        return new Promise((resolve) => {
-          const fadeInterval = setInterval(() => {
+    const newImg = new Image();
+    newImg.src = bg.image;
+    await new Promise((resolve) => (newImg.onload = resolve));
+
+    if (transition === "fade") {
+      const canvas = this.core.canvas;
+      const ctx = this.core.ctx;
+      let alpha = 0;
+      let skip = false;
+
+      // click handler to skip fade
+      const skipHandler = () => {
+        skip = true;
+      };
+      this.core.canvas.addEventListener("click", skipHandler);
+
+      await new Promise((resolve) => {
+        const step = () => {
+          if (skip) alpha = 1;
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.globalAlpha = alpha;
+          ctx.drawImage(newImg, 0, 0, canvas.width, canvas.height);
+          ctx.globalAlpha = 1;
+
+          if (alpha < 1) {
             alpha += 0.05;
-            if (alpha >= 1) {
-              alpha = 1;
-              clearInterval(fadeInterval);
-              resolve();
-            }
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.globalAlpha = alpha;
-            ctx.drawImage(newImg, 0, 0, canvas.width, canvas.height);
-            ctx.globalAlpha = 1;
-          }, 30);
-        }).then(() => {
-          this.image = newImg;
-        });
-      } else {
-        this.image = newImg;
-      }
+            requestAnimationFrame(step);
+          } else {
+            this.image = newImg;
+            this.core.canvas.removeEventListener("click", skipHandler);
+            resolve();
+          }
+        };
+        step();
+      });
+    } else {
+      this.image = newImg;
     }
   }
 
