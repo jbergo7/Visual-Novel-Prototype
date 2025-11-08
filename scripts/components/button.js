@@ -10,11 +10,12 @@ export class Button {
     this.height = data.height || 60;
 
     this.base = { ...data };
-
-    // Font size logic
     this.fontSize = 20; // initial
-    this.minFontRatio = 0.3; // min proportion of button height
-    this.maxFontRatio = 0.6; // max proportion of button height
+    this.minFontSize = 12; // minimum clamp
+    this.maxFontSize = 48; // maximum clamp
+
+    // store listener reference
+    this.clickHandler = null;
   }
 
   resize(scale) {
@@ -23,12 +24,7 @@ export class Button {
     this.width = this.base.width * scale;
     this.height = this.base.height * scale;
 
-    // Scale font proportionally to button height
-    this.fontSize = this.height * 0.5; // 50% of button height
-    this.fontSize = Math.max(
-      this.height * this.minFontRatio,
-      Math.min(this.fontSize, this.height * this.maxFontRatio)
-    );
+    this.fontSize = this.getFontSizeToFit(this.text, this.width, this.height);
   }
 
   render(ctx) {
@@ -36,7 +32,7 @@ export class Button {
     ctx.fillStyle = "rgba(54, 54, 54, 0.6)";
     ctx.fillRect(this.x, this.y, this.width, this.height);
 
-    // Draw button text
+    // Draw text
     ctx.fillStyle = "#fff";
     ctx.font = `${this.fontSize}px Arial`;
     ctx.textAlign = "center";
@@ -51,5 +47,43 @@ export class Button {
       my > this.y &&
       my < this.y + this.height
     );
+  }
+
+  addClickListener(callback) {
+    // Remove old listener
+    this.removeClickListener();
+
+    this.clickHandler = (e) => {
+      const rect = this.core.canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (this.isInside(mouseX, mouseY)) {
+        callback(this);
+      }
+    };
+
+    this.core.canvas.addEventListener("click", this.clickHandler);
+  }
+
+  removeClickListener() {
+    if (this.clickHandler) {
+      this.core.canvas.removeEventListener("click", this.clickHandler);
+      this.clickHandler = null;
+    }
+  }
+
+  getFontSizeToFit(text, maxWidth, maxHeight) {
+    const ctx = this.core.ctx;
+    let fontSize = Math.min(maxHeight * 0.6, (maxWidth / text.length) * 1.8);
+    fontSize = Math.max(this.minFontSize, Math.min(this.maxFontSize, fontSize));
+
+    ctx.font = `${fontSize}px Arial`;
+    const textWidth = ctx.measureText(text).width;
+    if (textWidth > maxWidth * 0.9) {
+      fontSize *= (maxWidth * 0.9) / textWidth;
+    }
+
+    return fontSize;
   }
 }
