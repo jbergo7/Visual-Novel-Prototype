@@ -1,4 +1,4 @@
-import { Background } from "./background.js";
+import { Scene } from "./scene.js";
 
 export class TitleScreen {
   constructor(core) {
@@ -7,13 +7,24 @@ export class TitleScreen {
     this.backgroundColor = "#1a1a1a";
 
     // Font size ratios
-    this.titleMinRatio = 0.04; // 4% of canvas height
-    this.titleMaxRatio = 0.08; // 8% of canvas height
-    this.buttonMinRatio = 0.025; // 2.5% of canvas height
-    this.buttonMaxRatio = 0.05; // 5% of canvas height
+    this.titleMinRatio = 0.04;
+    this.titleMaxRatio = 0.08;
+    this.buttonMinRatio = 0.025;
+    this.buttonMaxRatio = 0.05;
 
     this.updateLayout();
-    this.core.canvas.addEventListener("click", (e) => this.handleClick(e));
+
+    // Store reference for cleanup
+    this.clickHandler = (e) => this.handleClick(e);
+    this.core.canvas.addEventListener("click", this.clickHandler);
+  }
+
+  unload() {
+    // Remove the click listener when leaving the title screen
+    if (this.clickHandler) {
+      this.core.canvas.removeEventListener("click", this.clickHandler);
+      this.clickHandler = null;
+    }
   }
 
   onResize() {
@@ -51,7 +62,7 @@ export class TitleScreen {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // --- Title Text ---
-    let titleFontSize = canvas.height * 0.06; // 6% of canvas height
+    let titleFontSize = canvas.height * 0.06;
     titleFontSize = Math.max(
       canvas.height * this.titleMinRatio,
       Math.min(titleFontSize, canvas.height * this.titleMaxRatio)
@@ -65,7 +76,7 @@ export class TitleScreen {
 
     // --- Buttons ---
     this.buttons.forEach((btn) => {
-      let buttonFontSize = canvas.height * 0.035; // 3.5% of canvas height
+      let buttonFontSize = canvas.height * 0.035;
       buttonFontSize = Math.max(
         canvas.height * this.buttonMinRatio,
         Math.min(buttonFontSize, canvas.height * this.buttonMaxRatio)
@@ -83,7 +94,6 @@ export class TitleScreen {
     const rect = this.core.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-
     const canvas = this.core.canvas;
 
     this.buttons.forEach((btn) => {
@@ -109,9 +119,13 @@ export class TitleScreen {
   }
 
   async startNewGame() {
-    const bg = new Background(this.core, "home");
-    await bg.load();
-    this.core.setActiveScene(bg);
+    // Remove old title screen listener before loading new scene
+    this.unload();
+
+    // Start the prologue scene first
+    const scene = new Scene(this.core, "prologue");
+    await scene.load();
+    this.core.setActiveScene(scene);
   }
 
   update() {}

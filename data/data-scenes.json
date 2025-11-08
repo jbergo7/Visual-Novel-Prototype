@@ -1,4 +1,16 @@
 {
+  "prologue": {
+    "background": "",
+    "dialogues": [
+      { "speaker": "Narrator", "text": "Sa isang tahimik na baryo..." },
+      { "speaker": "Narrator", "text": "Si Andrea ay isang masipag na bata" },
+      {
+        "speaker": "Narrator",
+        "text": "siya ay nangupahan malapit sa kanyang paaralan at dito sinumulan ang kanyang storya"
+      }
+    ],
+    "goto": "home"
+  },
   "scene_1": {
     "background": "home",
     "dialogues": [
