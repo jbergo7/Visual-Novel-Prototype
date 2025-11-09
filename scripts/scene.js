@@ -127,7 +127,7 @@ export class Scene {
 
     const current = this.dialogues[this.currentLine];
 
-    // Show choices
+    // Show choices first
     if (current.choices) {
       this.choicesBox.setChoices(current.choices);
       return;
@@ -136,13 +136,66 @@ export class Scene {
     // Background change
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
+      // automatically advance to next dialogue after fade
       this.nextDialogue();
       return;
     }
 
-    // 💰 or ⚡ updates
-    if (current.money) this.updateStat("money", current.money);
-    if (current.energy) this.updateStat("energy", current.energy);
+    // Apply stat changes + show popup
+    if (current.money || current.energy) {
+      this.applyStats(current);
+      // ✅ Auto-advance if no speaker/text or choices
+      if (!current.speaker && !current.text && !current.choices) {
+        this.nextDialogue();
+        return;
+      }
+    }
+  }
+
+  // Unified function for applying stats + popup
+  applyStats(current) {
+    const c = this.core.currentCharacter;
+
+    if (current.money && current.money !== 0) {
+      c.money += current.money;
+      const amount = Math.abs(current.money);
+      const message =
+        current.money < 0 ? `-$${amount} Money` : `+$${amount} Money`;
+      const color = current.money < 0 ? "red" : "green";
+      this.popupNotif.show(message, color);
+    }
+
+    if (current.energy && current.energy !== 0) {
+      c.energy += current.energy;
+      const amount = Math.abs(current.energy);
+      const message =
+        current.energy < 0 ? `-${amount} Energy` : `+${amount} Energy`;
+      const color = current.energy < 0 ? "red" : "green";
+      this.popupNotif.show(message, color);
+    }
+  }
+
+  // Unified function for applying stats + popup
+  applyStats(current) {
+    const c = this.core.currentCharacter;
+
+    if (current.money && current.money !== 0) {
+      c.money += current.money;
+      const amount = Math.abs(current.money);
+      const message =
+        current.money < 0 ? `-$${amount} Money` : `+$${amount} Money`;
+      const color = current.money < 0 ? "red" : "green";
+      this.popupNotif.show(message, color);
+    }
+
+    if (current.energy && current.energy !== 0) {
+      c.energy += current.energy;
+      const amount = Math.abs(current.energy);
+      const message =
+        current.energy < 0 ? `-${amount} Energy` : `+${amount} Energy`;
+      const color = current.energy < 0 ? "red" : "green";
+      this.popupNotif.show(message, color);
+    }
   }
 
   async changeBackground(bgId, transition) {

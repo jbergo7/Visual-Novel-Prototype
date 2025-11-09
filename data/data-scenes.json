@@ -22,9 +22,9 @@
       },
       {
         "choices": [
-          { "text": "Nagbayad si Andrea ng 50 sa unang bayad", "money": -50 },
+          { "text": "Pay 50 pesos for rent", "money": -50 },
           {
-            "text": "Maghanap ng mas murang rent",
+            "text": "Find a cheaper place",
             "goto_scene": "prologue_lowbudget"
           }
         ]
