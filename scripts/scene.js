@@ -1,5 +1,6 @@
 import { DialogueBox } from "./components/dialoguebox.js";
 import { DialogueChoices } from "./components/dialogue_choices.js";
+import { PopupNotif } from "./components/popup_notif.js";
 
 export class Scene {
   constructor(core, sceneId) {
@@ -8,31 +9,27 @@ export class Scene {
     this.data = null;
     this.image = null;
     this.dialogues = [];
-    this.currentLine = -1; // start before first dialogue
+    this.currentLine = -1;
+
     this.dialogueBox = new DialogueBox(core);
     this.choicesBox = new DialogueChoices(core, (choice) =>
       this.handleChoice(choice)
     );
+
+    if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
+    this.popupNotif = core.popupNotif;
 
     this.clickHandler = this.nextDialogue.bind(this);
     this.isLoading = false;
   }
 
   async load() {
-    // Load scene data
     const res = await fetch("./data/data-scenes.json");
     const data = await res.json();
     this.data = data[this.sceneId];
     if (!this.data) return console.error(`Scene '${this.sceneId}' not found.`);
 
     this.dialogues = this.data.dialogues || [];
-
-    // No more local character fetch
-    // Use global runtime character from core
-    if (!this.core.currentCharacter) {
-      console.warn("No currentCharacter found in core!");
-      return;
-    }
 
     // Load background
     const bgRes = await fetch("./data/data-backgrounds.json");
@@ -47,6 +44,7 @@ export class Scene {
 
     this.unload();
     this.core.canvas.addEventListener("click", this.clickHandler);
+    this.nextDialogue();
   }
 
   unload() {
@@ -54,15 +52,48 @@ export class Scene {
     this.choicesBox.clear();
   }
 
-  handleChoice(choice) {
-    const c = this.core.currentCharacter; // use global character
+  /**
+   * 🔁 Shared stat update handler
+   */
+  updateStat(stat, value) {
+    const c = this.core.currentCharacter;
+    const current = c[stat];
+    const newValue = current + value;
 
-    if (choice.money) {
-      c.money += choice.money;
-      console.log(`${c.name} money: ${c.money}`);
+    // ⛔ If insufficient resources
+    if (value < 0 && current + value < 0) {
+      this.popupNotif.show(
+        `Not Enough ${stat.charAt(0).toUpperCase() + stat.slice(1)}`,
+        "red"
+      );
+      return false;
     }
-    if (choice.energy) {
-      c.energy += choice.energy;
+
+    // ✅ Apply change and show notif
+    c[stat] = newValue;
+    const amount = Math.abs(value);
+    const message =
+      value < 0
+        ? `-${amount} ${stat.charAt(0).toUpperCase() + stat.slice(1)}`
+        : `+${amount} ${stat.charAt(0).toUpperCase() + stat.slice(1)}`;
+    const color = value < 0 ? "red" : "green";
+    this.popupNotif.show(message, color);
+    return true;
+  }
+
+  handleChoice(choice) {
+    const c = this.core.currentCharacter;
+
+    // 💰 MONEY
+    if (choice.money && choice.money !== 0) {
+      const success = this.updateStat("money", choice.money);
+      if (!success) return; // stop action if insufficient
+    }
+
+    // ⚡ ENERGY
+    if (choice.energy && choice.energy !== 0) {
+      const success = this.updateStat("energy", choice.energy);
+      if (!success) return; // stop action if insufficient
     }
 
     if (choice.goto_scene) {
@@ -96,16 +127,22 @@ export class Scene {
 
     const current = this.dialogues[this.currentLine];
 
+    // Show choices
     if (current.choices) {
       this.choicesBox.setChoices(current.choices);
-    } else if (current.background) {
-      await this.changeBackground(current.background, current.transition);
-    } else if (current.money || current.energy) {
-      // Apply stat changes directly to global character
-      const c = this.core.currentCharacter;
-      if (current.money) c.money += current.money;
-      if (current.energy) c.energy += current.energy;
+      return;
     }
+
+    // Background change
+    if (current.background) {
+      await this.changeBackground(current.background, current.transition);
+      this.nextDialogue();
+      return;
+    }
+
+    // 💰 or ⚡ updates
+    if (current.money) this.updateStat("money", current.money);
+    if (current.energy) this.updateStat("energy", current.energy);
   }
 
   async changeBackground(bgId, transition) {
@@ -122,29 +159,25 @@ export class Scene {
       const canvas = this.core.canvas;
       const ctx = this.core.ctx;
       let alpha = 0;
-      let skip = false;
-
-      // click handler to skip fade
-      const skipHandler = () => {
-        skip = true;
-      };
-      this.core.canvas.addEventListener("click", skipHandler);
 
       await new Promise((resolve) => {
         const step = () => {
-          if (skip) alpha = 1;
-
           ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          if (this.image)
+            ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
+
           ctx.globalAlpha = alpha;
           ctx.drawImage(newImg, 0, 0, canvas.width, canvas.height);
           ctx.globalAlpha = 1;
+
+          if (this.popupNotif) this.popupNotif.render(ctx);
 
           if (alpha < 1) {
             alpha += 0.05;
             requestAnimationFrame(step);
           } else {
             this.image = newImg;
-            this.core.canvas.removeEventListener("click", skipHandler);
             resolve();
           }
         };
@@ -153,6 +186,12 @@ export class Scene {
     } else {
       this.image = newImg;
     }
+  }
+
+  onResize(scaleRatio) {
+    if (this.dialogueBox?.onResize) this.dialogueBox.onResize(scaleRatio);
+    if (this.choicesBox?.onResize) this.choicesBox.onResize(scaleRatio);
+    if (this.popupNotif?.onResize) this.popupNotif.onResize(scaleRatio);
   }
 
   render(ctx) {
@@ -173,8 +212,8 @@ export class Scene {
       }
     }
 
-    // Draw choices if any
     this.choicesBox.render(ctx);
+    this.popupNotif.render(ctx);
   }
 
   update() {}

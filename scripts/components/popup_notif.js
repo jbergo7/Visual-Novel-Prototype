@@ -2,9 +2,9 @@ export class PopupNotif {
   constructor(core) {
     this.core = core;
     this.popups = [];
-    this.scale = 1;
+    this.scale = core.scaleRatio || 1;
 
-    // Base values for layout
+    // Base layout values
     this.baseFontSize = 28;
     this.baseWidth = 420;
     this.baseHeight = 60;
@@ -47,6 +47,7 @@ export class PopupNotif {
     const fadeInterval = setInterval(() => {
       popup.alpha -= 0.05;
       popup.yOffset -= 0.4 * this.scale;
+
       if (popup.alpha <= 0) {
         clearInterval(fadeInterval);
         this.popups = this.popups.filter((p) => p !== popup);
@@ -55,7 +56,7 @@ export class PopupNotif {
   }
 
   onResize(scale) {
-    // Update scale when the canvas resizes
+    // ✅ Update popup scale instantly when canvas resizes
     this.scale = scale;
   }
 
@@ -67,7 +68,7 @@ export class PopupNotif {
     const scale = this.scale;
     const canvas = this.core.canvas;
 
-    // Responsive sizes
+    // Responsive layout values
     const popupWidth = this.baseWidth * scale;
     const popupHeight = this.baseHeight * scale;
     const spacing = this.baseSpacing * scale;
@@ -77,6 +78,7 @@ export class PopupNotif {
 
     ctx.font = `bold ${fontSize}px Arial`;
     ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
 
     this.popups.forEach((popup, i) => {
       const y = baseY + i * (popupHeight + spacing) + popup.yOffset;
@@ -84,19 +86,19 @@ export class PopupNotif {
 
       ctx.globalAlpha = popup.alpha;
 
-      // Background box
+      // ✅ Rounded background with smooth scaling
       ctx.fillStyle = popup.color;
+      ctx.beginPath();
       if (ctx.roundRect) {
-        ctx.beginPath();
-        ctx.roundRect(x, y, popupWidth, popupHeight, 10 * scale);
-        ctx.fill();
+        ctx.roundRect(x, y, popupWidth, popupHeight, 12 * scale);
       } else {
-        ctx.fillRect(x, y, popupWidth, popupHeight);
+        ctx.rect(x, y, popupWidth, popupHeight);
       }
+      ctx.fill();
 
-      // Text
+      // ✅ Text (vertically centered)
       ctx.fillStyle = "white";
-      ctx.fillText(popup.message, canvasCenter, y + popupHeight / 1.6);
+      ctx.fillText(popup.message, canvasCenter, y + popupHeight / 2);
     });
 
     ctx.restore();
