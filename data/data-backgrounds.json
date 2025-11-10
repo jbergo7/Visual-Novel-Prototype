@@ -49,7 +49,7 @@
         "y": 160,
         "width": 250,
         "height": 80,
-        "text": "Buy Grocery (-70 Energy)",
+        "text": "Buy Grocery",
         "action": {
           "type": "background",
           "target": "grocery",

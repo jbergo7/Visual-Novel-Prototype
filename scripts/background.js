@@ -1,6 +1,7 @@
 import { Header } from "./components/header.js";
 import { Button } from "./components/button.js";
 import { PopupNotif } from "./components/popup_notif.js";
+import { StatsManager } from "./stats_manager.js"; // ✅ NEW IMPORT
 
 export class Background {
   constructor(core, backgroundId) {
@@ -10,12 +11,16 @@ export class Background {
     this.image = null;
     this.buttons = [];
 
-    // Use shared header and popup notification
+    // Shared header + popup
     if (!core.header) core.header = new Header(core);
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
 
     this.header = core.header;
     this.popupNotif = core.popupNotif;
+
+    // ✅ Initialize stats manager
+    if (!core.statsManager) core.statsManager = new StatsManager(core);
+    this.statsManager = core.statsManager;
 
     this.scale = 1;
     this.isLoading = false;
@@ -34,7 +39,6 @@ export class Background {
         return;
       }
 
-      // Load image
       const newImg = new Image();
       newImg.src = this.bgData.image;
       await new Promise((resolve) => (newImg.onload = resolve));
@@ -42,58 +46,27 @@ export class Background {
 
       this.unload();
 
-      // Create buttons
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
         const btn = new Button(this.core, btnData);
 
         btn.addClickListener(async () => {
           if (this.isLoading) return;
-
           const action = btn.data?.action;
           if (!action) return;
 
-          const c = this.core.currentCharacter;
-          if (c) {
-            // Check for insufficient energy/money
-            if (
-              typeof action.energy === "number" &&
-              c.energy + action.energy < 0
-            ) {
-              this.popupNotif.show("Not Enough Energy", "red");
-              return;
-            }
-
-            if (
-              typeof action.money === "number" &&
-              c.money + action.money < 0
-            ) {
-              this.popupNotif.show("Not Enough Money", "red");
-              return;
-            }
-
-            // Apply valid changes + show popup
-            if (typeof action.energy === "number" && action.energy !== 0) {
-              c.energy += action.energy;
-              const sign = action.energy > 0 ? "+" : "";
-              const color = action.energy > 0 ? "green" : "red";
-              this.popupNotif.show(`Energy ${sign}${action.energy}`, color);
-              console.log(`${c.name} energy updated: ${c.energy}`);
-            }
-
-            if (typeof action.money === "number" && action.money !== 0) {
-              c.money += action.money;
-              const sign = action.money > 0 ? "+" : "";
-              const color = action.money > 0 ? "green" : "red";
-              this.popupNotif.show(`Money ${sign}${action.money}`, color);
-              console.log(`${c.name} money updated: ${c.money}`);
-            }
+          // ✅ Use StatsManager to check resources
+          const check = this.statsManager.checkResources(action);
+          if (!check.enough) {
+            this.popupNotif.show(check.message, "red");
+            return;
           }
 
-          // Prevent rapid double triggers
+          // ✅ Apply stat updates
+          this.statsManager.applyStats(action);
+
           this.isLoading = true;
           this.unload();
 
-          // Handle next scene or background
           switch (action.type) {
             case "background": {
               const bgModule = await import("./background.js");
@@ -148,18 +121,12 @@ export class Background {
       case "restPlayer":
         c.energy = 100;
         this.popupNotif.show("Energy Restored", "green");
-        console.log(`${c.name} energy restored to ${c.energy}`);
         break;
     }
   }
 
-  update() {
-    // Placeholder for future updates
-  }
-
   render(ctx) {
     const canvas = this.core.canvas;
-
     if (this.image) {
       ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
     } else {
@@ -169,8 +136,6 @@ export class Background {
 
     this.header?.render(ctx);
     this.buttons.forEach((btn) => btn.render(ctx));
-
-    // Render popup notification last
     this.popupNotif?.render(ctx);
   }
 }

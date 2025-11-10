@@ -1,6 +1,7 @@
 import { DialogueBox } from "./components/dialoguebox.js";
 import { DialogueChoices } from "./components/dialogue_choices.js";
 import { PopupNotif } from "./components/popup_notif.js";
+import { StatsManager } from "./stats_manager.js";
 
 export class Scene {
   constructor(core, sceneId) {
@@ -18,6 +19,10 @@ export class Scene {
 
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
     this.popupNotif = core.popupNotif;
+
+    // ✅ Shared stat system
+    if (!core.statsManager) core.statsManager = new StatsManager(core);
+    this.statsManager = core.statsManager;
 
     this.clickHandler = this.nextDialogue.bind(this);
     this.isLoading = false;
@@ -52,50 +57,18 @@ export class Scene {
     this.choicesBox.clear();
   }
 
-  /**
-   * 🔁 Shared stat update handler
-   */
-  updateStat(stat, value) {
-    const c = this.core.currentCharacter;
-    const current = c[stat];
-    const newValue = current + value;
-
-    // ⛔ If insufficient resources
-    if (value < 0 && current + value < 0) {
-      this.popupNotif.show(
-        `Not Enough ${stat.charAt(0).toUpperCase() + stat.slice(1)}`,
-        "red"
-      );
-      return false;
-    }
-
-    // ✅ Apply change and show notif
-    c[stat] = newValue;
-    const amount = Math.abs(value);
-    const message =
-      value < 0
-        ? `-${amount} ${stat.charAt(0).toUpperCase() + stat.slice(1)}`
-        : `+${amount} ${stat.charAt(0).toUpperCase() + stat.slice(1)}`;
-    const color = value < 0 ? "red" : "green";
-    this.popupNotif.show(message, color);
-    return true;
-  }
-
   handleChoice(choice) {
-    const c = this.core.currentCharacter;
-
-    // 💰 MONEY
-    if (choice.money && choice.money !== 0) {
-      const success = this.updateStat("money", choice.money);
-      if (!success) return; // stop action if insufficient
+    // ✅ Check resource sufficiency before applying
+    const check = this.statsManager.checkResources(choice);
+    if (!check.enough) {
+      this.popupNotif.show(check.message, "red");
+      return;
     }
 
-    // ⚡ ENERGY
-    if (choice.energy && choice.energy !== 0) {
-      const success = this.updateStat("energy", choice.energy);
-      if (!success) return; // stop action if insufficient
-    }
+    // ✅ Apply stat changes
+    this.statsManager.applyStats(choice);
 
+    // If choice leads to another scene
     if (choice.goto_scene) {
       this.unload();
       import("./scene.js").then(async (mod) => {
@@ -106,6 +79,7 @@ export class Scene {
       return;
     }
 
+    // Proceed to next dialogue
     this.nextDialogue();
   }
 
@@ -136,42 +110,19 @@ export class Scene {
     // Background change
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
-      // automatically advance to next dialogue after fade
-      this.nextDialogue();
+      this.nextDialogue(); // auto-advance after fade
       return;
     }
 
-    // Apply stat changes + show popup
+    // ✅ Apply stat changes (if present)
     if (current.money || current.energy) {
-      this.applyStats(current);
-      // ✅ Auto-advance if no speaker/text or choices
+      this.statsManager.applyStats(current);
+
+      // Auto-advance if no speaker/text/choices
       if (!current.speaker && !current.text && !current.choices) {
         this.nextDialogue();
         return;
       }
-    }
-  }
-
-  // Unified function for applying stats + popup
-  applyStats(current) {
-    const c = this.core.currentCharacter;
-
-    if (current.money && current.money !== 0) {
-      c.money += current.money;
-      const amount = Math.abs(current.money);
-      const message =
-        current.money < 0 ? `-$${amount} Money` : `+$${amount} Money`;
-      const color = current.money < 0 ? "red" : "green";
-      this.popupNotif.show(message, color);
-    }
-
-    if (current.energy && current.energy !== 0) {
-      c.energy += current.energy;
-      const amount = Math.abs(current.energy);
-      const message =
-        current.energy < 0 ? `-${amount} Energy` : `+${amount} Energy`;
-      const color = current.energy < 0 ? "red" : "green";
-      this.popupNotif.show(message, color);
     }
   }
 
@@ -201,7 +152,8 @@ export class Scene {
           ctx.drawImage(newImg, 0, 0, canvas.width, canvas.height);
           ctx.globalAlpha = 1;
 
-          if (this.popupNotif) this.popupNotif.render(ctx);
+          // keep popup visible during transition
+          this.popupNotif?.render(ctx);
 
           if (alpha < 1) {
             alpha += 0.05;
@@ -219,9 +171,9 @@ export class Scene {
   }
 
   onResize(scaleRatio) {
-    if (this.dialogueBox?.onResize) this.dialogueBox.onResize(scaleRatio);
-    if (this.choicesBox?.onResize) this.choicesBox.onResize(scaleRatio);
-    if (this.popupNotif?.onResize) this.popupNotif.onResize(scaleRatio);
+    this.dialogueBox?.onResize(scaleRatio);
+    this.choicesBox?.onResize(scaleRatio);
+    this.popupNotif?.onResize(scaleRatio);
   }
 
   render(ctx) {
