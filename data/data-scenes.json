@@ -53,7 +53,13 @@
     "background": "home",
     "dialogues": [
       { "speaker": "Andrea", "text": "What a beautiful morning..." },
-      { "speaker": "Mika", "text": "You’re early today!" }
+      { "speaker": "Mika", "text": "You’re early today!" },
+      {
+        "choices": [
+          { "text": "reset energy", "energy": "reset" },
+          { "text": "Pay 50 pesos for rent", "money": -150 }
+        ]
+      }
     ],
     "goto": "home"
   }

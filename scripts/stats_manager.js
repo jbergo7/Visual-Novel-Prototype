@@ -25,43 +25,53 @@ export class StatsManager {
     }
 
     // ⚡ Apply energy changes
-    if (typeof current.energy === "number" && current.energy !== 0) {
+    if (current.energy !== undefined) {
       const prevEnergy = c.energy;
       const maxEnergy = c.max_energy ?? Infinity;
 
-      // ✅ CASE 1: Already full before adding energy
-      if (current.energy > 0 && prevEnergy >= maxEnergy) {
-        this.popupNotif?.show("Max Energy Reached", "green");
-        console.log(`${c.name} is already at max energy.`);
+      // ✅ Special case: "reset"
+      if (current.energy === "reset") {
+        c.energy = maxEnergy;
+        this.popupNotif?.show("Energy Restored", "green");
+        console.log(`${c.name} energy reset: ${c.energy}/${maxEnergy}`);
         return;
       }
 
-      // Proceed with adding/subtracting
-      c.energy += current.energy;
+      // ✅ Numeric add/subtract
+      if (typeof current.energy === "number" && current.energy !== 0) {
+        // Already full before adding
+        if (current.energy > 0 && prevEnergy >= maxEnergy) {
+          this.popupNotif?.show("Max Energy Reached", "green");
+          console.log(`${c.name} is already at max energy.`);
+          return;
+        }
 
-      // Enforce cap
-      if (c.energy > maxEnergy) c.energy = maxEnergy;
-      if (c.energy < 0) c.energy = 0;
+        c.energy += current.energy;
 
-      const diff = c.energy - prevEnergy;
-      const amount = Math.abs(diff);
+        // Enforce cap
+        if (c.energy > maxEnergy) c.energy = maxEnergy;
+        if (c.energy < 0) c.energy = 0;
 
-      if (amount > 0) {
-        const message = diff < 0 ? `-${amount} Energy` : `+${amount} Energy`;
-        const color = diff < 0 ? "red" : "green";
-        this.popupNotif?.show(message, color);
+        const diff = c.energy - prevEnergy;
+        const amount = Math.abs(diff);
+
+        if (amount > 0) {
+          const message = diff < 0 ? `-${amount} Energy` : `+${amount} Energy`;
+          const color = diff < 0 ? "red" : "green";
+          this.popupNotif?.show(message, color);
+        }
+
+        // Just reached max after adding
+        if (
+          current.energy > 0 &&
+          c.energy === maxEnergy &&
+          prevEnergy < maxEnergy
+        ) {
+          this.popupNotif?.show("Max Energy Reached", "green");
+        }
+
+        console.log(`${c.name} energy updated: ${c.energy}/${maxEnergy}`);
       }
-
-      // ✅ CASE 2: Just reached the max after adding
-      if (
-        current.energy > 0 &&
-        c.energy === maxEnergy &&
-        prevEnergy < maxEnergy
-      ) {
-        this.popupNotif?.show("Max Energy Reached", "green");
-      }
-
-      console.log(`${c.name} energy updated: ${c.energy}/${maxEnergy}`);
     }
   }
 
