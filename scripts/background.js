@@ -10,7 +10,7 @@ export class Background {
     this.image = null;
     this.buttons = [];
 
-    // Use global header and popup notif
+    // Use shared header and popup notification
     if (!core.header) core.header = new Header(core);
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
 
@@ -34,7 +34,7 @@ export class Background {
         return;
       }
 
-      // Load new background image
+      // Load image
       const newImg = new Image();
       newImg.src = this.bgData.image;
       await new Promise((resolve) => (newImg.onload = resolve));
@@ -54,7 +54,7 @@ export class Background {
 
           const c = this.core.currentCharacter;
           if (c) {
-            // Check for insufficient resources before proceeding
+            // Check for insufficient energy/money
             if (
               typeof action.energy === "number" &&
               c.energy + action.energy < 0
@@ -71,20 +71,29 @@ export class Background {
               return;
             }
 
-            // Apply valid changes
-            if (typeof action.energy === "number") {
+            // Apply valid changes + show popup
+            if (typeof action.energy === "number" && action.energy !== 0) {
               c.energy += action.energy;
+              const sign = action.energy > 0 ? "+" : "";
+              const color = action.energy > 0 ? "green" : "red";
+              this.popupNotif.show(`Energy ${sign}${action.energy}`, color);
               console.log(`${c.name} energy updated: ${c.energy}`);
             }
-            if (typeof action.money === "number") {
+
+            if (typeof action.money === "number" && action.money !== 0) {
               c.money += action.money;
+              const sign = action.money > 0 ? "+" : "";
+              const color = action.money > 0 ? "green" : "red";
+              this.popupNotif.show(`Money ${sign}${action.money}`, color);
               console.log(`${c.name} money updated: ${c.money}`);
             }
           }
 
+          // Prevent rapid double triggers
           this.isLoading = true;
           this.unload();
 
+          // Handle next scene or background
           switch (action.type) {
             case "background": {
               const bgModule = await import("./background.js");
@@ -138,13 +147,14 @@ export class Background {
     switch (name) {
       case "restPlayer":
         c.energy = 100;
+        this.popupNotif.show("Energy Restored", "green");
         console.log(`${c.name} energy restored to ${c.energy}`);
         break;
     }
   }
 
   update() {
-    // Nothing yet
+    // Placeholder for future updates
   }
 
   render(ctx) {
@@ -160,7 +170,7 @@ export class Background {
     this.header?.render(ctx);
     this.buttons.forEach((btn) => btn.render(ctx));
 
-    // Render popup notification if visible
+    // Render popup notification last
     this.popupNotif?.render(ctx);
   }
 }
