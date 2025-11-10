@@ -171,7 +171,7 @@ export class Scene {
   }
 
   onResize(scaleRatio) {
-    this.dialogueBox?.onResize(scaleRatio);
+    // this.dialogueBox?.onResize(scaleRatio);
     this.choicesBox?.onResize(scaleRatio);
     this.popupNotif?.onResize(scaleRatio);
   }

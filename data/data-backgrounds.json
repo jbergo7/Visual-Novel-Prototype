@@ -28,6 +28,24 @@
         "height": 80,
         "text": "Talk to Mika",
         "action": { "type": "scene", "target": "scene_1" }
+      },
+      {
+        "id": "play_videogames",
+        "x": 450,
+        "y": 550,
+        "width": 250,
+        "height": 80,
+        "text": "Play Video Games",
+        "action": { "type": "background", "target": "home", "energy": -10 }
+      },
+      {
+        "id": "drink_energy",
+        "x": 450,
+        "y": 650,
+        "width": 250,
+        "height": 80,
+        "text": "Drink EnergyBoost",
+        "action": { "type": "background", "target": "home", "energy": 10 }
       }
     ]
   },

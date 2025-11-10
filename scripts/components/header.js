@@ -37,6 +37,11 @@ export class Header {
 
     // Energy - right
     ctx.textAlign = "right";
-    ctx.fillText(`Energy: ${c.energy}`, canvas.width * 0.96, headerHeight / 2);
+
+    // ✅ show Energy with max cap
+    const energyText = c.max_energy
+      ? `Energy: ${c.energy}/${c.max_energy}`
+      : `Energy: ${c.energy}`;
+    ctx.fillText(energyText, canvas.width * 0.96, headerHeight / 2);
   }
 }
