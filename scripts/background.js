@@ -54,15 +54,23 @@ export class Background {
           const action = btn.data?.action;
           if (!action) return;
 
-          // ✅ Use StatsManager to check resources
+          // ✅ Check resources first
           const check = this.statsManager.checkResources(action);
           if (!check.enough) {
             this.popupNotif.show(check.message, "red");
             return;
           }
 
-          // ✅ Apply stat updates
+          // ✅ Apply money/energy changes
           this.statsManager.applyStats(action);
+
+          // ✅ Apply max_energy changes if any
+          if (
+            typeof action.max_energy === "number" &&
+            action.max_energy !== 0
+          ) {
+            this.statsManager.modifyMaxEnergy(action.max_energy);
+          }
 
           this.isLoading = true;
           this.unload();
@@ -119,7 +127,7 @@ export class Background {
 
     switch (name) {
       case "restPlayer":
-        c.energy = 100;
+        c.energy = c.max_energy || 100;
         this.popupNotif.show("Energy Restored", "green");
         break;
     }

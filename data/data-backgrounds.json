@@ -45,7 +45,7 @@
         "width": 250,
         "height": 80,
         "text": "Drink EnergyBoost",
-        "action": { "type": "background", "target": "home", "energy": 10 }
+        "action": { "type": "background", "target": "home", "max_energy": 10 }
       }
     ]
   },

@@ -1,7 +1,7 @@
 import { DialogueBox } from "./components/dialoguebox.js";
 import { DialogueChoices } from "./components/dialogue_choices.js";
 import { PopupNotif } from "./components/popup_notif.js";
-import { StatsManager } from "./stats_manager.js";
+import { StatsManager } from "./stats_manager.js"; // ✅ NEW
 
 export class Scene {
   constructor(core, sceneId) {
@@ -20,7 +20,7 @@ export class Scene {
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
     this.popupNotif = core.popupNotif;
 
-    // ✅ Shared stat system
+    // ✅ Initialize StatsManager
     if (!core.statsManager) core.statsManager = new StatsManager(core);
     this.statsManager = core.statsManager;
 
@@ -58,17 +58,13 @@ export class Scene {
   }
 
   handleChoice(choice) {
-    // ✅ Check resource sufficiency before applying
-    const check = this.statsManager.checkResources(choice);
-    if (!check.enough) {
-      this.popupNotif.show(check.message, "red");
-      return;
+    // ✅ Apply stats/energy/money/max_energy from choice
+    this.statsManager.applyStats(choice);
+    if (typeof choice.max_energy === "number") {
+      this.statsManager.modifyMaxEnergy(choice.max_energy);
     }
 
-    // ✅ Apply stat changes
-    this.statsManager.applyStats(choice);
-
-    // If choice leads to another scene
+    // Handle goto_scene
     if (choice.goto_scene) {
       this.unload();
       import("./scene.js").then(async (mod) => {
@@ -79,7 +75,6 @@ export class Scene {
       return;
     }
 
-    // Proceed to next dialogue
     this.nextDialogue();
   }
 
@@ -101,7 +96,12 @@ export class Scene {
 
     const current = this.dialogues[this.currentLine];
 
-    // Show choices first
+    // Apply stat changes + max_energy
+    if (current.money || current.energy) this.statsManager.applyStats(current);
+    if (typeof current.max_energy === "number")
+      this.statsManager.modifyMaxEnergy(current.max_energy);
+
+    // Show choices if available
     if (current.choices) {
       this.choicesBox.setChoices(current.choices);
       return;
@@ -110,19 +110,8 @@ export class Scene {
     // Background change
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
-      this.nextDialogue(); // auto-advance after fade
+      this.nextDialogue();
       return;
-    }
-
-    // ✅ Apply stat changes (if present)
-    if (current.money || current.energy) {
-      this.statsManager.applyStats(current);
-
-      // Auto-advance if no speaker/text/choices
-      if (!current.speaker && !current.text && !current.choices) {
-        this.nextDialogue();
-        return;
-      }
     }
   }
 
@@ -152,8 +141,7 @@ export class Scene {
           ctx.drawImage(newImg, 0, 0, canvas.width, canvas.height);
           ctx.globalAlpha = 1;
 
-          // keep popup visible during transition
-          this.popupNotif?.render(ctx);
+          if (this.popupNotif) this.popupNotif.render(ctx);
 
           if (alpha < 1) {
             alpha += 0.05;
@@ -171,9 +159,9 @@ export class Scene {
   }
 
   onResize(scaleRatio) {
-    // this.dialogueBox?.onResize(scaleRatio);
-    this.choicesBox?.onResize(scaleRatio);
-    this.popupNotif?.onResize(scaleRatio);
+    if (this.dialogueBox?.onResize) this.dialogueBox.onResize(scaleRatio);
+    if (this.choicesBox?.onResize) this.choicesBox.onResize(scaleRatio);
+    if (this.popupNotif?.onResize) this.popupNotif.onResize(scaleRatio);
   }
 
   render(ctx) {
