@@ -12,6 +12,7 @@ export class Scene {
     this.dialogues = [];
     this.currentLine = -1;
 
+    // UI components
     this.dialogueBox = new DialogueBox(core);
     this.choicesBox = new DialogueChoices(core, (choice) =>
       this.handleChoice(choice)
@@ -23,12 +24,12 @@ export class Scene {
     if (!core.statsManager) core.statsManager = new StatsManager(core);
     this.statsManager = core.statsManager;
 
-    this.clickHandler = this.nextDialogue.bind(this);
+    // control flags
     this.isLoading = false;
+    this.clickHandler = (e) => this.nextDialogue();
   }
 
   async load() {
-    // ✅ Use cached scene data from GameCore
     const sceneCache = this.core.dataCache?.scenes;
     if (!sceneCache) {
       console.error("❌ Scene data not found in core.dataCache.");
@@ -43,19 +44,25 @@ export class Scene {
 
     this.dialogues = this.data.dialogues || [];
 
-    // ✅ Load background using cached background data
+    // ✅ Load background
     const bgCache = this.core.dataCache?.backgrounds;
     const bgId = this.data.background || "home";
     const bg = bgCache?.[bgId];
 
-    if (bg && bg.image) {
+    if (bg?.image) {
       this.image = new Image();
       this.image.src = bg.image;
       await new Promise((resolve) => (this.image.onload = resolve));
     }
 
+    // ✅ Cleanup previous listeners to avoid double firing
     this.unload();
+
+    // ✅ Add fresh click listener
     this.core.canvas.addEventListener("click", this.clickHandler);
+
+    // ✅ Start at line 0
+    this.currentLine = -1;
     this.nextDialogue();
   }
 
@@ -64,33 +71,29 @@ export class Scene {
     this.choicesBox.clear();
   }
 
-  handleChoice(choice) {
-    // ✅ 1. Apply max_energy FIRST
-    if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
-      this.statsManager.modifyMaxEnergy(choice.max_energy);
-    }
-
-    // ✅ 2. Apply stat changes
-    this.statsManager.applyStats(choice);
-
-    // ✅ 3. Handle goto_scene
-    if (choice.goto_scene) {
-      this.unload();
-      import("./scene.js").then(async (mod) => {
-        const newScene = new mod.Scene(this.core, choice.goto_scene);
-        await newScene.load();
-        this.core.setActiveScene(newScene);
-      });
-      return;
-    }
-
-    this.nextDialogue();
-  }
-
   async nextDialogue() {
     if (this.isLoading || this.choicesBox.choices.length > 0) return;
 
     this.currentLine++;
+
+    // ✅ Update current dialogue index in gameState
+    if (this.core.gameState) {
+      this.core.gameState.currentScene = {
+        target: this.sceneId,
+        dialogues: this.currentLine,
+        active: true,
+      };
+
+      // 🧠 Debug log
+      console.log(
+        "🟢 Updated Game State:",
+        JSON.stringify(this.core.gameState, null, 2)
+      );
+    } else {
+      console.warn("⚠️ core.gameState not found — skipping update log.");
+    }
+
+    // ✅ Scene finished? move to next background or scene
     if (this.currentLine >= this.dialogues.length) {
       const goto = this.data.goto;
       if (goto) {
@@ -104,13 +107,12 @@ export class Scene {
     }
 
     const current = this.dialogues[this.currentLine];
+    if (!current) return;
 
-    // ✅ Apply max_energy FIRST if exists
+    // ✅ Apply stats before rendering
     if (typeof current.max_energy === "number" && current.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(current.max_energy);
     }
-
-    // ✅ Apply other stats AFTER
     if (
       current.money ||
       current.energy ||
@@ -126,12 +128,33 @@ export class Scene {
       return;
     }
 
-    // ✅ Change background (uses cached background data now)
+    // ✅ Background change
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
       this.nextDialogue();
       return;
     }
+  }
+
+  handleChoice(choice) {
+    // ✅ Apply stat changes
+    if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
+      this.statsManager.modifyMaxEnergy(choice.max_energy);
+    }
+    this.statsManager.applyStats(choice);
+
+    // ✅ Jump to another scene
+    if (choice.goto_scene) {
+      this.unload();
+      import("./scene.js").then(async (mod) => {
+        const newScene = new mod.Scene(this.core, choice.goto_scene);
+        await newScene.load();
+        this.core.setActiveScene(newScene);
+      });
+      return;
+    }
+
+    this.nextDialogue();
   }
 
   async changeBackground(bgId, transition) {
@@ -177,7 +200,7 @@ export class Scene {
   }
 
   onResize(scaleRatio) {
-    if (this.dialogueBox?.onResize) this.dialogueBox.onResize(scaleRatio);
+    this.dialogueBox?.onResize(scaleRatio);
     this.choicesBox?.onResize(scaleRatio);
     this.popupNotif?.onResize(scaleRatio);
   }

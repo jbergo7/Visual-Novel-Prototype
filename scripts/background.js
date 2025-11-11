@@ -25,7 +25,6 @@ export class Background {
   }
 
   async load() {
-    // 🚫 Prevent double loading
     if (this.isLoading) return;
     this.isLoading = true;
 
@@ -85,6 +84,9 @@ export class Background {
 
           switch (action.type) {
             case "background": {
+              // 🌀 Update runtime gamestate
+              this.core.updateGameState("background", action.target);
+
               const { Background } = await import("./background.js");
               const bg = new Background(this.core, action.target);
               await bg.load();
@@ -93,6 +95,9 @@ export class Background {
             }
 
             case "scene": {
+              // 🌀 Update runtime gamestate
+              this.core.updateGameState("scene", action.target, 0);
+
               const { Scene } = await import("./scene.js");
               const scene = new Scene(this.core, action.target);
               await scene.load();
@@ -121,7 +126,6 @@ export class Background {
   }
 
   unload() {
-    // ✅ Remove listeners cleanly before clearing
     this.buttons.forEach((btn) => btn.removeClickListener());
     this.buttons = [];
   }
