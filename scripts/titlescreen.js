@@ -1,4 +1,5 @@
 import { Scene } from "./scene.js";
+import { Background } from "./background.js";
 
 export class TitleScreen {
   constructor(core) {
@@ -126,6 +127,11 @@ export class TitleScreen {
     const scene = new Scene(this.core, "prologue");
     await scene.load();
     this.core.setActiveScene(scene);
+
+    // if load background
+    // const background = new Background(this.core, "home");
+    // await background.load();
+    // this.core.setActiveScene(background);
   }
 
   update() {}

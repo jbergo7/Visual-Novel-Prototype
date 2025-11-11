@@ -11,15 +11,13 @@ export class Background {
     this.image = null;
     this.buttons = [];
 
-    // Shared header + popup
+    // Shared singletons
     if (!core.header) core.header = new Header(core);
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
+    if (!core.statsManager) core.statsManager = new StatsManager(core);
 
     this.header = core.header;
     this.popupNotif = core.popupNotif;
-
-    // Initialize stats manager
-    if (!core.statsManager) core.statsManager = new StatsManager(core);
     this.statsManager = core.statsManager;
 
     this.scale = 1;
@@ -27,31 +25,29 @@ export class Background {
   }
 
   async load() {
+    // 🚫 Prevent double loading
+    if (this.isLoading) return;
     this.isLoading = true;
 
     try {
-      // ✅ Use runtime cached backgrounds from GameCore instead of fetch
+      // ✅ Use runtime cached backgrounds
       const bgCache = this.core.dataCache?.backgrounds;
-      if (!bgCache) {
-        console.error("❌ Background data not found in core.dataCache.");
-        return;
-      }
+      if (!bgCache) throw new Error("Background data not found in cache");
 
       this.bgData = bgCache[this.backgroundId];
-      if (!this.bgData) {
-        console.error(
-          `❌ Background '${this.backgroundId}' not found in cache.`
-        );
-        return;
-      }
+      if (!this.bgData)
+        throw new Error(`Background '${this.backgroundId}' not found.`);
+
+      console.debug(`🎨 Loading background: ${this.backgroundId}`);
 
       // ✅ Load image
-      const newImg = new Image();
-      newImg.src = this.bgData.image;
-      await new Promise((resolve) => (newImg.onload = resolve));
-      this.image = newImg;
+      const img = new Image();
+      img.src = this.bgData.image;
+      await new Promise((resolve) => (img.onload = resolve));
+      this.image = img;
 
-      this.unload(); // clear previous buttons
+      // ✅ Clean previous buttons to avoid double event binding
+      this.unload();
 
       // ✅ Build buttons
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
@@ -62,14 +58,14 @@ export class Background {
           const action = btn.data?.action;
           if (!action) return;
 
-          // ✅ 1. Check resources first (energy, money, etc.)
+          // ✅ 1. Check resources first
           const check = this.statsManager.checkResources(action);
           if (!check.enough) {
             this.popupNotif.show(check.message, "red");
             return;
           }
 
-          // ✅ 2. Apply max_energy FIRST (so cap is correct before adding)
+          // ✅ 2. Apply max_energy first
           if (
             typeof action.max_energy === "number" &&
             action.max_energy !== 0
@@ -77,10 +73,10 @@ export class Background {
             this.statsManager.modifyMaxEnergy(action.max_energy);
           }
 
-          // ✅ 3. Apply stat updates (energy, money, etc.)
+          // ✅ 3. Apply stat updates
           this.statsManager.applyStats(action);
 
-          // ✅ 4. If walang type (no background/scene transition), stop here
+          // ✅ 4. Stop if no transition
           if (!action.type) return;
 
           // ✅ 5. Handle transitions
@@ -89,16 +85,16 @@ export class Background {
 
           switch (action.type) {
             case "background": {
-              const bgModule = await import("./background.js");
-              const bg = new bgModule.Background(this.core, action.target);
+              const { Background } = await import("./background.js");
+              const bg = new Background(this.core, action.target);
               await bg.load();
               this.core.setActiveScene(bg);
               break;
             }
 
             case "scene": {
-              const sceneModule = await import("./scene.js");
-              const scene = new sceneModule.Scene(this.core, action.target);
+              const { Scene } = await import("./scene.js");
+              const scene = new Scene(this.core, action.target);
               await scene.load();
               this.core.setActiveScene(scene);
               break;
@@ -116,6 +112,7 @@ export class Background {
       });
 
       this.onResize(this.scale);
+      console.debug(`✅ Background ready: ${this.backgroundId}`);
     } catch (err) {
       console.error("❌ Failed to load background:", err);
     } finally {
@@ -124,6 +121,7 @@ export class Background {
   }
 
   unload() {
+    // ✅ Remove listeners cleanly before clearing
     this.buttons.forEach((btn) => btn.removeClickListener());
     this.buttons = [];
   }
@@ -132,7 +130,7 @@ export class Background {
     this.scale = scale;
     this.buttons.forEach((btn) => btn.resize(scale));
     this.header?.onResize(scale);
-    this.popupNotif?.onResize(this.scale);
+    this.popupNotif?.onResize(scale);
   }
 
   executeGameFunction(name) {
