@@ -1,0 +1,10 @@
+{
+  "gameTitle": "Visual Novel",
+  "version": "1.0.0",
+  "day": [
+    {
+      "currentDay": 1,
+      "game_time": ["Morning", "Afternoon", "Evening"]
+    }
+  ]
+}

@@ -30,22 +30,30 @@ export class Background {
     this.isLoading = true;
 
     try {
-      const res = await fetch("./data/data-backgrounds.json");
-      const data = await res.json();
-      this.bgData = data[this.backgroundId];
-
-      if (!this.bgData) {
-        console.error(`Background '${this.backgroundId}' not found.`);
+      // ✅ Use runtime cached backgrounds from GameCore instead of fetch
+      const bgCache = this.core.dataCache?.backgrounds;
+      if (!bgCache) {
+        console.error("❌ Background data not found in core.dataCache.");
         return;
       }
 
+      this.bgData = bgCache[this.backgroundId];
+      if (!this.bgData) {
+        console.error(
+          `❌ Background '${this.backgroundId}' not found in cache.`
+        );
+        return;
+      }
+
+      // ✅ Load image
       const newImg = new Image();
       newImg.src = this.bgData.image;
       await new Promise((resolve) => (newImg.onload = resolve));
       this.image = newImg;
 
-      this.unload();
+      this.unload(); // clear previous buttons
 
+      // ✅ Build buttons
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
         const btn = new Button(this.core, btnData);
 
@@ -54,14 +62,14 @@ export class Background {
           const action = btn.data?.action;
           if (!action) return;
 
-          // ✅ 1. Check resources first
+          // ✅ 1. Check resources first (energy, money, etc.)
           const check = this.statsManager.checkResources(action);
           if (!check.enough) {
             this.popupNotif.show(check.message, "red");
             return;
           }
 
-          // ✅ 2. Apply max_energy FIRST (para ma-adjust cap bago mag-add energy)
+          // ✅ 2. Apply max_energy FIRST (so cap is correct before adding)
           if (
             typeof action.max_energy === "number" &&
             action.max_energy !== 0
@@ -69,13 +77,13 @@ export class Background {
             this.statsManager.modifyMaxEnergy(action.max_energy);
           }
 
-          // ✅ 3. Apply energy / money / reset AFTER adjusting max cap
+          // ✅ 3. Apply stat updates (energy, money, etc.)
           this.statsManager.applyStats(action);
 
           // ✅ 4. If walang type (no background/scene transition), stop here
           if (!action.type) return;
 
-          // ✅ 5. Transition logic
+          // ✅ 5. Handle transitions
           this.isLoading = true;
           this.unload();
 
@@ -87,6 +95,7 @@ export class Background {
               this.core.setActiveScene(bg);
               break;
             }
+
             case "scene": {
               const sceneModule = await import("./scene.js");
               const scene = new sceneModule.Scene(this.core, action.target);
@@ -94,6 +103,7 @@ export class Background {
               this.core.setActiveScene(scene);
               break;
             }
+
             case "function":
               this.executeGameFunction(action.name);
               break;
@@ -107,7 +117,7 @@ export class Background {
 
       this.onResize(this.scale);
     } catch (err) {
-      console.error("Failed to load background:", err);
+      console.error("❌ Failed to load background:", err);
     } finally {
       this.isLoading = false;
     }

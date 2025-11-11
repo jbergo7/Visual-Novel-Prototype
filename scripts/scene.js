@@ -1,7 +1,7 @@
 import { DialogueBox } from "./components/dialoguebox.js";
 import { DialogueChoices } from "./components/dialogue_choices.js";
 import { PopupNotif } from "./components/popup_notif.js";
-import { StatsManager } from "./stats_manager.js"; // ✅ NEW
+import { StatsManager } from "./stats_manager.js";
 
 export class Scene {
   constructor(core, sceneId) {
@@ -20,7 +20,6 @@ export class Scene {
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
     this.popupNotif = core.popupNotif;
 
-    // ✅ Initialize StatsManager
     if (!core.statsManager) core.statsManager = new StatsManager(core);
     this.statsManager = core.statsManager;
 
@@ -29,18 +28,26 @@ export class Scene {
   }
 
   async load() {
-    const res = await fetch("./data/data-scenes.json");
-    const data = await res.json();
-    this.data = data[this.sceneId];
-    if (!this.data) return console.error(`Scene '${this.sceneId}' not found.`);
+    // ✅ Use cached scene data from GameCore
+    const sceneCache = this.core.dataCache?.scenes;
+    if (!sceneCache) {
+      console.error("❌ Scene data not found in core.dataCache.");
+      return;
+    }
+
+    this.data = sceneCache[this.sceneId];
+    if (!this.data) {
+      console.error(`❌ Scene '${this.sceneId}' not found in cache.`);
+      return;
+    }
 
     this.dialogues = this.data.dialogues || [];
 
-    // Load background
-    const bgRes = await fetch("./data/data-backgrounds.json");
-    const bgData = await bgRes.json();
+    // ✅ Load background using cached background data
+    const bgCache = this.core.dataCache?.backgrounds;
     const bgId = this.data.background || "home";
-    const bg = bgData[bgId];
+    const bg = bgCache?.[bgId];
+
     if (bg && bg.image) {
       this.image = new Image();
       this.image.src = bg.image;
@@ -63,7 +70,7 @@ export class Scene {
       this.statsManager.modifyMaxEnergy(choice.max_energy);
     }
 
-    // ✅ 2. Then apply stats AFTER max_energy adjustment
+    // ✅ 2. Apply stat changes
     this.statsManager.applyStats(choice);
 
     // ✅ 3. Handle goto_scene
@@ -103,18 +110,23 @@ export class Scene {
       this.statsManager.modifyMaxEnergy(current.max_energy);
     }
 
-    // ✅ Then apply other stat changes (energy, money, etc.)
-    if (current.money || current.energy || current.energy === "reset") {
+    // ✅ Apply other stats AFTER
+    if (
+      current.money ||
+      current.energy ||
+      current.energy === "reset" ||
+      current.action
+    ) {
       this.statsManager.applyStats(current);
     }
 
-    // ✅ Show choices if available
+    // ✅ Show choices
     if (current.choices) {
       this.choicesBox.setChoices(current.choices);
       return;
     }
 
-    // ✅ Background change
+    // ✅ Change background (uses cached background data now)
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
       this.nextDialogue();
@@ -123,9 +135,8 @@ export class Scene {
   }
 
   async changeBackground(bgId, transition) {
-    const bgRes = await fetch("./data/data-backgrounds.json");
-    const bgData = await bgRes.json();
-    const bg = bgData[bgId];
+    const bgCache = this.core.dataCache?.backgrounds;
+    const bg = bgCache?.[bgId];
     if (!bg || !bg.image) return;
 
     const newImg = new Image();
@@ -167,8 +178,8 @@ export class Scene {
 
   onResize(scaleRatio) {
     if (this.dialogueBox?.onResize) this.dialogueBox.onResize(scaleRatio);
-    if (this.choicesBox?.onResize) this.choicesBox.onResize(scaleRatio);
-    if (this.popupNotif?.onResize) this.popupNotif.onResize(scaleRatio);
+    this.choicesBox?.onResize(scaleRatio);
+    this.popupNotif?.onResize(scaleRatio);
   }
 
   render(ctx) {

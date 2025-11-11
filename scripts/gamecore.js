@@ -13,15 +13,48 @@ export class GameCore {
     this.characters = [];
     this.currentCharacter = null;
 
+    // ✅ Runtime cached game data (for backgrounds, scenes, etc.)
+    this.dataCache = {
+      backgrounds: null,
+      scenes: null,
+    };
+
     window.addEventListener("resize", () => this.resizeCanvas());
   }
 
+  /**
+   * Initialize the game system: preload JSON data, load characters, and start loop.
+   */
   async initialize() {
+    await this.preloadData(); // ✅ load all JSON first
     await this.loadCharacters();
     this.resizeCanvas();
     this.startGameLoop();
   }
 
+  /**
+   * ✅ Preload all game JSONs (backgrounds, scenes, etc.)
+   * to avoid repeated fetch calls.
+   */
+  async preloadData() {
+    try {
+      const [bgRes, sceneRes] = await Promise.all([
+        fetch("./data/data-backgrounds.json").then((r) => r.json()),
+        fetch("./data/data-scenes.json").then((r) => r.json()),
+      ]);
+
+      this.dataCache.backgrounds = bgRes;
+      this.dataCache.scenes = sceneRes;
+
+      console.log("✅ Game data preloaded (backgrounds & scenes)");
+    } catch (err) {
+      console.error("❌ Failed to preload game data:", err);
+    }
+  }
+
+  /**
+   * Load all character data from JSON and set the active one.
+   */
   async loadCharacters() {
     const res = await fetch("./data/data-characters.json");
     const data = await res.json();
