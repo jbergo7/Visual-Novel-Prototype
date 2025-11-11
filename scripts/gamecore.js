@@ -5,7 +5,6 @@ export class GameCore {
 
     this.baseWidth = 1920;
     this.baseHeight = 1080;
-
     this.scaleRatio = 1;
     this.activeScene = null;
 
@@ -20,58 +19,54 @@ export class GameCore {
       gameSettings: null,
     };
 
-    // ✅ Live runtime game state (mutable copy)
+    // ✅ Mutable runtime state
     this.gameState = null;
 
     window.addEventListener("resize", () => this.resizeCanvas());
   }
 
-  /**
-   * 🔹 Main game initialization
-   */
   async initialize() {
     await this.preloadData();
     await this.loadCharacters();
 
-    // Clone the gameState for runtime use
+    if (!this.dataCache.gameSettings?.gameState) {
+      console.error("❌ Invalid or missing game settings JSON");
+      return;
+    }
+
     this.gameState = structuredClone(this.dataCache.gameSettings.gameState);
     console.log("✅ Runtime Game State:", this.gameState);
 
     this.resizeCanvas();
-
-    // 🔹 Auto-start based on active field
     let started = false;
 
-    // 1️⃣ If background is active
-    if (this.gameState.currentBackground?.active) {
-      const bgTarget = this.gameState.currentBackground.target;
-      if (bgTarget) {
-        const { Background } = await import("./background.js");
-        const bg = new Background(this, bgTarget);
-        await bg.load();
-        this.setActiveScene(bg);
-        started = true;
-        console.log(`🎬 Started game with background: ${bgTarget}`);
-      }
-    }
-
-    // 2️⃣ If scene is active
-    if (!started && this.gameState.currentScene?.active) {
+    // 🔹 1️⃣ If SCENE is active
+    if (this.gameState.currentScene?.active) {
       const sceneTarget = this.gameState.currentScene.target;
       const dialogueIndex = this.gameState.currentScene.dialogues || 0;
 
       if (sceneTarget) {
         const { Scene } = await import("./scene.js");
         const scene = new Scene(this, sceneTarget);
-        await scene.load();
-
-        // Continue from saved dialogue index
-        scene.currentLine = dialogueIndex;
+        await scene.load(dialogueIndex);
         this.setActiveScene(scene);
-        started = true;
         console.log(
-          `🎬 Started game with scene: ${sceneTarget} (dialogue ${dialogueIndex})`
+          `🎬 Started scene '${sceneTarget}' (dialogue ${dialogueIndex})`
         );
+        started = true;
+      }
+    }
+
+    // 🔹 2️⃣ If BACKGROUND is active
+    if (!started && this.gameState.currentBackground?.active) {
+      const bgTarget = this.gameState.currentBackground.target;
+      if (bgTarget) {
+        const { Background } = await import("./background.js");
+        const bg = new Background(this, bgTarget);
+        await bg.load();
+        this.setActiveScene(bg);
+        console.log(`🏠 Started background '${bgTarget}'`);
+        started = true;
       }
     }
 
@@ -79,13 +74,9 @@ export class GameCore {
       console.warn("⚠️ No active background or scene found in settings!");
     }
 
-    // 🔹 Start game loop
     this.startGameLoop();
   }
 
-  /**
-   * 🔹 Fetch all main JSON data before starting
-   */
   async preloadData() {
     try {
       const [bgRes, sceneRes, settingsRes] = await Promise.all([
@@ -104,9 +95,6 @@ export class GameCore {
     }
   }
 
-  /**
-   * 🔹 Load characters JSON
-   */
   async loadCharacters() {
     const res = await fetch("./data/data-characters.json");
     const data = await res.json();
@@ -116,34 +104,32 @@ export class GameCore {
     console.log("👤 Characters loaded:", this.characters);
   }
 
-  /**
-   * 🔹 Update runtime game state (called by scenes/backgrounds)
-   */
   updateGameState(type, target, dialogueIndex = 0) {
     if (!this.gameState) return;
+    const { currentBackground, currentScene } = this.gameState;
+    if (!currentBackground || !currentScene) {
+      console.warn("⚠️ Invalid gameState structure.");
+      return;
+    }
 
     if (type === "background") {
-      this.gameState.currentBackground.active = true;
-      this.gameState.currentBackground.target = target;
-
-      this.gameState.currentScene.active = false;
-      this.gameState.currentScene.target = null;
-      this.gameState.currentScene.dialogues = 0;
+      currentBackground.active = true;
+      currentBackground.target = target;
+      currentScene.active = false;
+      currentScene.target = null;
+      currentScene.dialogues = 0;
     }
 
     if (type === "scene") {
-      this.gameState.currentBackground.active = false;
-      this.gameState.currentScene.active = true;
-      this.gameState.currentScene.target = target;
-      this.gameState.currentScene.dialogues = dialogueIndex ?? 0;
+      currentBackground.active = false;
+      currentScene.active = true;
+      currentScene.target = target;
+      currentScene.dialogues = dialogueIndex ?? 0;
     }
 
     console.log("🌀 Updated Game State:", this.gameState);
   }
 
-  /**
-   * 🔹 Canvas & loop
-   */
   resizeCanvas() {
     const aspect = this.baseWidth / this.baseHeight;
     let newWidth = window.innerWidth;
@@ -184,11 +170,7 @@ export class GameCore {
   }
 
   setActiveScene(scene) {
-    // 🔹 Properly unload old one before switching
-    if (this.activeScene?.unload) {
-      this.activeScene.unload();
-    }
-
+    if (this.activeScene?.unload) this.activeScene.unload();
     this.activeScene = scene;
     if (scene.onResize) scene.onResize(this.scaleRatio);
   }

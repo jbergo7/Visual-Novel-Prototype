@@ -21,7 +21,6 @@ export class TitleScreen {
   }
 
   unload() {
-    // Remove the click listener when leaving the title screen
     if (this.clickHandler) {
       this.core.canvas.removeEventListener("click", this.clickHandler);
       this.clickHandler = null;
@@ -58,11 +57,10 @@ export class TitleScreen {
   render(ctx) {
     const canvas = this.core.canvas;
 
-    // Background
     ctx.fillStyle = this.backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // --- Title Text ---
+    // --- Title ---
     let titleFontSize = canvas.height * 0.06;
     titleFontSize = Math.max(
       canvas.height * this.titleMinRatio,
@@ -119,19 +117,54 @@ export class TitleScreen {
     });
   }
 
+  /**
+   * 🔹 New Game loader using runtime gameState from GameCore
+   */
   async startNewGame() {
-    // Remove old title screen listener before loading new scene
     this.unload();
 
-    // Start the prologue scene first
-    const scene = new Scene(this.core, "prologue");
-    await scene.load();
-    this.core.setActiveScene(scene);
+    const gameState = this.core.gameState;
+    if (!gameState) {
+      console.error("❌ No runtime gameState found!");
+      return;
+    }
 
-    // if load background
-    // const background = new Background(this.core, "home");
-    // await background.load();
-    // this.core.setActiveScene(background);
+    let started = false;
+
+    // 1️⃣ Load background if active
+    if (gameState.currentBackground?.active) {
+      const bgTarget = gameState.currentBackground.target;
+      if (bgTarget) {
+        console.log(`🎬 Starting game with background: ${bgTarget}`);
+        const bg = new Background(this.core, bgTarget);
+        await bg.load();
+        this.core.setActiveScene(bg);
+        started = true;
+      }
+    }
+
+    // 2️⃣ Load scene if active (or if background is inactive)
+    if (!started && gameState.currentScene?.active) {
+      const sceneTarget = gameState.currentScene.target;
+      const dialogueIndex = gameState.currentScene.dialogues || 0;
+
+      if (sceneTarget) {
+        console.log(
+          `🎬 Starting game with scene: ${sceneTarget}, dialogue ${dialogueIndex}`
+        );
+        const scene = new Scene(this.core, sceneTarget);
+        await scene.load();
+
+        // continue from saved dialogue index
+        scene.currentLine = dialogueIndex;
+        this.core.setActiveScene(scene);
+        started = true;
+      }
+    }
+
+    if (!started) {
+      console.warn("⚠️ No active scene or background to load from gameState!");
+    }
   }
 
   update() {}
