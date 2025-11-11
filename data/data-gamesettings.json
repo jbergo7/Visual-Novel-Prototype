@@ -4,11 +4,11 @@
   "gameState": {
     "currentDay": 1,
     "currentTime": "Morning",
-    "currentBackground": { "target": "home", "active": true },
+    "currentBackground": { "target": "home", "active": false },
     "currentScene": {
-      "target": "prologue_lowbudget",
-      "dialogues": 1,
-      "active": false
+      "target": "prologue",
+      "dialogues": 0,
+      "active": true
     }
   }
 }
