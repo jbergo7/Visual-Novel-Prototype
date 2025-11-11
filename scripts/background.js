@@ -1,7 +1,7 @@
 import { Header } from "./components/header.js";
 import { Button } from "./components/button.js";
 import { PopupNotif } from "./components/popup_notif.js";
-import { StatsManager } from "./stats_manager.js"; // ✅ NEW IMPORT
+import { StatsManager } from "./stats_manager.js";
 
 export class Background {
   constructor(core, backgroundId) {
@@ -18,7 +18,7 @@ export class Background {
     this.header = core.header;
     this.popupNotif = core.popupNotif;
 
-    // ✅ Initialize stats manager
+    // Initialize stats manager
     if (!core.statsManager) core.statsManager = new StatsManager(core);
     this.statsManager = core.statsManager;
 
@@ -54,17 +54,14 @@ export class Background {
           const action = btn.data?.action;
           if (!action) return;
 
-          // ✅ Check resources first
+          // ✅ 1. Check resources first
           const check = this.statsManager.checkResources(action);
           if (!check.enough) {
             this.popupNotif.show(check.message, "red");
             return;
           }
 
-          // ✅ Apply money/energy changes
-          this.statsManager.applyStats(action);
-
-          // ✅ Apply max_energy changes if any
+          // ✅ 2. Apply max_energy FIRST (para ma-adjust cap bago mag-add energy)
           if (
             typeof action.max_energy === "number" &&
             action.max_energy !== 0
@@ -72,6 +69,13 @@ export class Background {
             this.statsManager.modifyMaxEnergy(action.max_energy);
           }
 
+          // ✅ 3. Apply energy / money / reset AFTER adjusting max cap
+          this.statsManager.applyStats(action);
+
+          // ✅ 4. If walang type (no background/scene transition), stop here
+          if (!action.type) return;
+
+          // ✅ 5. Transition logic
           this.isLoading = true;
           this.unload();
 

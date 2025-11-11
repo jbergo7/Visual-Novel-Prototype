@@ -58,13 +58,15 @@ export class Scene {
   }
 
   handleChoice(choice) {
-    // ✅ Apply stats/energy/money/max_energy from choice
-    this.statsManager.applyStats(choice);
-    if (typeof choice.max_energy === "number") {
+    // ✅ 1. Apply max_energy FIRST
+    if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(choice.max_energy);
     }
 
-    // Handle goto_scene
+    // ✅ 2. Then apply stats AFTER max_energy adjustment
+    this.statsManager.applyStats(choice);
+
+    // ✅ 3. Handle goto_scene
     if (choice.goto_scene) {
       this.unload();
       import("./scene.js").then(async (mod) => {
@@ -96,18 +98,23 @@ export class Scene {
 
     const current = this.dialogues[this.currentLine];
 
-    // Apply stat changes + max_energy
-    if (current.money || current.energy) this.statsManager.applyStats(current);
-    if (typeof current.max_energy === "number")
+    // ✅ Apply max_energy FIRST if exists
+    if (typeof current.max_energy === "number" && current.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(current.max_energy);
+    }
 
-    // Show choices if available
+    // ✅ Then apply other stat changes (energy, money, etc.)
+    if (current.money || current.energy || current.energy === "reset") {
+      this.statsManager.applyStats(current);
+    }
+
+    // ✅ Show choices if available
     if (current.choices) {
       this.choicesBox.setChoices(current.choices);
       return;
     }
 
-    // Background change
+    // ✅ Background change
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
       this.nextDialogue();
