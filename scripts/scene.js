@@ -49,14 +49,20 @@ export class Scene {
     this.unload();
     this.core.canvas.addEventListener("click", this.clickHandler);
 
-    // right-click = back
+    // Right-click = back
     this.backHandler = (e) => {
       e.preventDefault();
       this.prevDialogue();
     };
     this.core.canvas.addEventListener("contextmenu", this.backHandler);
 
+    // ✅ Resume from saved dialogue index if available
     this.currentLine = -1;
+    const saved = this.core.gameState?.currentScene;
+    if (saved?.target === this.sceneId && typeof saved.dialogues === "number") {
+      this.currentLine = saved.dialogues - 1; // minus 1 para nextDialogue() mag-land sa tamang linya
+    }
+
     this.nextDialogue();
   }
 
