@@ -161,7 +161,7 @@ export class TitleScreen {
         started = true;
       }
     }
-
+    console.dir(this.core);
     if (!started) {
       console.warn("⚠️ No active scene or background to load from gameState!");
     }

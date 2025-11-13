@@ -7,7 +7,7 @@
     "currentBackground": { "target": "home", "active": false },
     "currentScene": {
       "target": "prologue",
-      "dialogues": 0,
+      "dialogues": 2,
       "active": true
     }
   }
