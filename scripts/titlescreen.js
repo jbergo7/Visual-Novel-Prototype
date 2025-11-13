@@ -6,6 +6,7 @@ export class TitleScreen {
     this.core = core;
     this.buttons = [];
     this.backgroundColor = "#1a1a1a";
+    this.hoveredButtonIndex = null; // ✅ track hover
 
     // Font size ratios
     this.titleMinRatio = 0.04;
@@ -17,13 +18,19 @@ export class TitleScreen {
 
     // Store reference for cleanup
     this.clickHandler = (e) => this.handleClick(e);
+    this.mouseMoveHandler = (e) => this.handleMouseMove(e); // ✅ hover tracking
     this.core.canvas.addEventListener("click", this.clickHandler);
+    this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
   }
 
   unload() {
     if (this.clickHandler) {
       this.core.canvas.removeEventListener("click", this.clickHandler);
       this.clickHandler = null;
+    }
+    if (this.mouseMoveHandler) {
+      this.core.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
+      this.mouseMoveHandler = null;
     }
   }
 
@@ -54,6 +61,32 @@ export class TitleScreen {
     ];
   }
 
+  handleMouseMove(e) {
+    const rect = this.core.canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const canvas = this.core.canvas;
+
+    this.hoveredButtonIndex = null;
+
+    this.buttons.forEach((btn, index) => {
+      const fontSize = canvas.height * 0.035;
+      const textHeight = fontSize * 1.2;
+      const textWidth = this.core.ctx.measureText(btn.text).width;
+      const halfWidth = textWidth / 2;
+      const halfHeight = textHeight / 2;
+
+      if (
+        mouseX > btn.x - halfWidth &&
+        mouseX < btn.x + halfWidth &&
+        mouseY > btn.y - halfHeight &&
+        mouseY < btn.y + halfHeight
+      ) {
+        this.hoveredButtonIndex = index;
+      }
+    });
+  }
+
   render(ctx) {
     const canvas = this.core.canvas;
 
@@ -74,19 +107,34 @@ export class TitleScreen {
     ctx.fillText("My Visual Novel", canvas.width / 2, canvas.height * 0.3);
 
     // --- Buttons ---
-    this.buttons.forEach((btn) => {
+    this.buttons.forEach((btn, index) => {
       let buttonFontSize = canvas.height * 0.035;
       buttonFontSize = Math.max(
         canvas.height * this.buttonMinRatio,
         Math.min(buttonFontSize, canvas.height * this.buttonMaxRatio)
       );
 
-      ctx.fillStyle = "#fff";
+      // ✅ hover effect: golden color if hovered
+      ctx.fillStyle = index === this.hoveredButtonIndex ? "#ffd700" : "#fff";
       ctx.font = `${buttonFontSize}px Arial`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(btn.text, btn.x, btn.y);
     });
+
+    // --- Version (lower-right) ---
+    if (this.core.version) {
+      const versionFontSize = canvas.height * 0.02;
+      ctx.font = `${versionFontSize}px Arial`;
+      ctx.fillStyle = "#aaa";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(
+        `v${this.core.version}`,
+        canvas.width - 20,
+        canvas.height - 10
+      );
+    }
   }
 
   handleClick(e) {
@@ -109,7 +157,6 @@ export class TitleScreen {
         mouseY < btn.y + halfHeight
       ) {
         console.log(`Button clicked: ${btn.text}`);
-
         if (btn.id === "newgame") {
           this.startNewGame();
         }
@@ -161,7 +208,7 @@ export class TitleScreen {
         started = true;
       }
     }
-    console.dir(this.core);
+
     if (!started) {
       console.warn("⚠️ No active scene or background to load from gameState!");
     }
