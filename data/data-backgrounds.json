@@ -18,7 +18,7 @@
         "width": 250,
         "height": 80,
         "text": "Rest",
-        "action": { "energy": "reset" }
+        "action": { "type": "scene", "target": "sleep" }
       },
       {
         "id": "talk_mika",

@@ -62,5 +62,18 @@
       }
     ],
     "goto": "home"
+  },
+  "sleep": {
+    "background": "home",
+    "dialogues": [
+      { "speaker": "Narrator", "text": "Natulog si Andrea ng mahimbing" },
+      {
+        "choices": [
+          { "text": "Natulog ka ng mahinbing", "energy": "reset" },
+          { "text": "Pay 50 pesos for rent", "money": -50 }
+        ]
+      }
+    ],
+    "goto": "home"
   }
 }

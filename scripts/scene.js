@@ -12,10 +12,9 @@ export class Scene {
     this.dialogues = [];
     this.currentLine = -1;
 
-    // Track applied stat deltas per dialogue line
-    this.appliedStats = {}; // { [lineIndex]: { money, energy, max_energy } }
+    // Track all applied stat changes per dialogue
+    this.appliedStats = {};
 
-    // UI components
     this.dialogueBox = new DialogueBox(core);
     this.choicesBox = new DialogueChoices(core, (choice) =>
       this.handleChoice(choice)
@@ -27,7 +26,6 @@ export class Scene {
     if (!core.statsManager) core.statsManager = new StatsManager(core);
     this.statsManager = core.statsManager;
 
-    // control flags
     this.isLoading = false;
     this.clickHandler = (e) => this.nextDialogue();
   }
@@ -39,7 +37,6 @@ export class Scene {
     if (!this.data) return;
     this.dialogues = this.data.dialogues || [];
 
-    // Load background
     const bgCache = this.core.dataCache?.backgrounds;
     const bgId = this.data.background || "home";
     const bg = bgCache?.[bgId];
@@ -51,6 +48,8 @@ export class Scene {
 
     this.unload();
     this.core.canvas.addEventListener("click", this.clickHandler);
+
+    // right-click = back
     this.backHandler = (e) => {
       e.preventDefault();
       this.prevDialogue();
@@ -88,38 +87,50 @@ export class Scene {
     const current = this.dialogues[this.currentLine];
     if (!current) return;
 
-    // Apply stats and record deltas
-    const deltas = { money: 0, energy: 0, max_energy: 0 };
+    const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
+
+    // ✅ Apply max_energy change
     if (typeof current.max_energy === "number" && current.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(current.max_energy);
       deltas.max_energy = current.max_energy;
     }
-    if (typeof current.money === "number" && current.money !== 0) {
+
+    // ✅ Apply money
+    if (current.money !== undefined) {
       this.statsManager.applyStats({ money: current.money });
-      deltas.money = current.money;
-    }
-    if (typeof current.energy === "number" && current.energy !== 0) {
-      this.statsManager.applyStats({ energy: current.energy });
-      deltas.energy = current.energy;
+      if (typeof current.money === "number") deltas.money = current.money;
     }
 
-    // Save deltas
+    // ✅ Apply energy (with "reset" support)
+    if (current.energy !== undefined) {
+      const c = this.core.currentCharacter;
+      deltas.prevEnergy = c?.energy ?? null;
+
+      this.statsManager.applyStats({ energy: current.energy });
+
+      if (typeof current.energy === "number") {
+        deltas.energy = current.energy;
+      } else if (current.energy === "reset") {
+        deltas.energy = "reset";
+      }
+    }
+
     this.appliedStats[this.currentLine] = deltas;
 
-    // Show choices if available
+    // ✅ Handle choices
     if (current.choices) {
       this.choicesBox.setChoices(current.choices);
       return;
     }
 
-    // Handle background changes
+    // ✅ Handle background changes
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
       this.nextDialogue();
       return;
     }
 
-    // Update Game State
+    // ✅ Update Game State
     if (this.core.gameState) {
       this.core.gameState.currentScene = {
         target: this.sceneId,
@@ -132,25 +143,47 @@ export class Scene {
   async prevDialogue() {
     if (this.isLoading) return;
 
-    // Clear choices if showing
     if (this.choicesBox.choices.length > 0) this.choicesBox.clear();
-
     if (this.currentLine <= 0) return;
 
     const nextLineIndex = this.currentLine;
     const next = this.dialogues[nextLineIndex];
 
-    // Reverse stats using stored deltas
+    // 🔁 Reverse stats
     const deltas = this.appliedStats[nextLineIndex];
     if (deltas) {
-      if (deltas.money) this.statsManager.applyStats({ money: -deltas.money });
-      if (deltas.energy)
-        this.statsManager.applyStats({ energy: -deltas.energy });
-      if (deltas.max_energy)
+      const reverse = {};
+
+      // 💰 Reverse money
+      if (typeof deltas.money === "number" && deltas.money !== 0) {
+        reverse.money = -deltas.money;
+      }
+
+      // ⚡ Reverse energy
+      if (deltas.energy !== undefined) {
+        if (deltas.energy === "reset" && deltas.prevEnergy !== null) {
+          // restore energy before reset
+          const c = this.core.currentCharacter;
+          c.energy = deltas.prevEnergy;
+          this.popupNotif?.show("Energy Reverted", "yellow");
+        } else if (typeof deltas.energy === "number" && deltas.energy !== 0) {
+          reverse.energy = -deltas.energy;
+        }
+      }
+
+      // 🔋 Reverse max_energy
+      if (typeof deltas.max_energy === "number" && deltas.max_energy !== 0) {
         this.statsManager.modifyMaxEnergy(-deltas.max_energy);
+      }
+
+      if (Object.keys(reverse).length > 0) {
+        this.statsManager.applyStats(reverse);
+      }
+
       delete this.appliedStats[nextLineIndex];
     }
 
+    // Move back
     this.currentLine--;
 
     const prev = this.dialogues[this.currentLine];
@@ -167,10 +200,8 @@ export class Scene {
       }
     }
 
-    // Restore choices if landed on them
     if (prev?.choices) this.choicesBox.setChoices(prev.choices);
 
-    // Update Game State
     if (this.core.gameState) {
       this.core.gameState.currentScene.dialogues = this.currentLine;
     }
@@ -179,18 +210,25 @@ export class Scene {
   }
 
   handleChoice(choice) {
-    const deltas = { money: 0, energy: 0, max_energy: 0 };
+    const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
+
     if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(choice.max_energy);
       deltas.max_energy = choice.max_energy;
     }
-    if (typeof choice.money === "number" && choice.money !== 0) {
+
+    if (choice.money !== undefined) {
       this.statsManager.applyStats({ money: choice.money });
-      deltas.money = choice.money;
+      if (typeof choice.money === "number") deltas.money = choice.money;
     }
-    if (typeof choice.energy === "number" && choice.energy !== 0) {
+
+    if (choice.energy !== undefined) {
+      const c = this.core.currentCharacter;
+      deltas.prevEnergy = c?.energy ?? null;
+
       this.statsManager.applyStats({ energy: choice.energy });
-      deltas.energy = choice.energy;
+      if (typeof choice.energy === "number") deltas.energy = choice.energy;
+      else if (choice.energy === "reset") deltas.energy = "reset";
     }
 
     this.appliedStats[this.currentLine] = deltas;
