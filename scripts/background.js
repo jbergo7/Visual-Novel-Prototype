@@ -2,6 +2,7 @@ import { Header } from "./components/header.js";
 import { Button } from "./components/button.js";
 import { PopupNotif } from "./components/popup_notif.js";
 import { StatsManager } from "./stats_manager.js";
+import MenuPopup from "./components/menu_popup.js";
 
 export class Background {
   constructor(core, backgroundId) {
@@ -15,10 +16,12 @@ export class Background {
     if (!core.header) core.header = new Header(core);
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
     if (!core.statsManager) core.statsManager = new StatsManager(core);
+    if (!core.menuPopup) core.menuPopup = new MenuPopup(core);
 
     this.header = core.header;
     this.popupNotif = core.popupNotif;
     this.statsManager = core.statsManager;
+    this.menuPopup = core.menuPopup;
 
     this.scale = 1;
     this.isLoading = false;
@@ -53,6 +56,9 @@ export class Background {
         const btn = new Button(this.core, btnData);
 
         btn.addClickListener(async () => {
+          // ⛔ BLOCK if popup open
+          if (this.core.menuPopup?.visible) return;
+
           if (this.isLoading) return;
           const action = btn.data?.action;
           if (!action) return;
@@ -161,5 +167,10 @@ export class Background {
     this.header?.render(ctx);
     this.buttons.forEach((btn) => btn.render(ctx));
     this.popupNotif?.render(ctx);
+    if (this.menuPopup?.visible) {
+      ctx.fillStyle = "rgba(0,0,0,0.3)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    this.menuPopup?.render(ctx);
   }
 }
