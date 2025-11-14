@@ -5,8 +5,12 @@ export class Header {
   constructor(core) {
     this.core = core;
 
-    this.menuBtn = new MenuButton(core);
-    this.menuPopup = new MenuPopup(core);
+    // Use global instances from core
+    if (!core.menuButton) core.menuButton = new MenuButton(core);
+    if (!core.menuPopup) core.menuPopup = new MenuPopup(core);
+
+    this.menuBtn = core.menuButton;
+    this.menuPopup = core.menuPopup;
 
     this.fontSize = 24;
     this.minFontRatio = 0.3;
@@ -61,10 +65,10 @@ export class Header {
       : `Energy: ${c.energy}`;
     ctx.fillText(energyText, canvas.width * 0.25, headerHeight / 2);
 
-    // Menu button - right
+    // Menu button - right (render global button)
     this.menuBtn.render(ctx);
 
-    // Render popup if visible
+    // Render popup if visible (global)
     this.menuPopup.render(ctx);
   }
 }

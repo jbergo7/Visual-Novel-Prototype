@@ -1,4 +1,3 @@
-// components/menu_button.js
 export default class MenuButton {
   constructor(core) {
     this.core = core;
@@ -10,17 +9,16 @@ export default class MenuButton {
     // Hover listener
     this._moveHandler = (e) => this._onMouseMove(e);
     this.core.canvas.addEventListener("mousemove", this._moveHandler);
+  }
 
-    // Click listener
-    this._clickHandler = (e) => {
-      if (this.checkClick(e)) {
-        // 🔥 Toggle popup menu
-        if (this.core.menuPopup) {
-          this.core.menuPopup.toggle();
-        }
-      }
-    };
-    this.core.canvas.addEventListener("click", this._clickHandler);
+  containsPoint(x, y) {
+    const half = this.size / 2;
+    return (
+      x >= this.x - half &&
+      x <= this.x + half &&
+      y >= this.y - half &&
+      y <= this.y + half
+    );
   }
 
   setPosition(x, y) {
@@ -37,25 +35,6 @@ export default class MenuButton {
       this.core.canvas.removeEventListener("mousemove", this._moveHandler);
       this._moveHandler = null;
     }
-
-    if (this._clickHandler) {
-      this.core.canvas.removeEventListener("click", this._clickHandler);
-      this._clickHandler = null;
-    }
-  }
-
-  checkClick(e) {
-    const rect = this.core.canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const half = this.size / 2;
-
-    return (
-      mx >= this.x - half &&
-      mx <= this.x + half &&
-      my >= this.y - half &&
-      my <= this.y + half
-    );
   }
 
   _onMouseMove(e) {

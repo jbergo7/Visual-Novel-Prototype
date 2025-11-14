@@ -32,7 +32,6 @@ export class Background {
     this.isLoading = true;
 
     try {
-      // ✅ Use runtime cached backgrounds
       const bgCache = this.core.dataCache?.backgrounds;
       if (!bgCache) throw new Error("Background data not found in cache");
 
@@ -42,35 +41,35 @@ export class Background {
 
       console.debug(`🎨 Loading background: ${this.backgroundId}`);
 
-      // ✅ Load image
+      // Load background image
       const img = new Image();
       img.src = this.bgData.image;
       await new Promise((resolve) => (img.onload = resolve));
       this.image = img;
 
-      // ✅ Clean previous buttons to avoid double event binding
+      // Clean previous buttons
       this.unload();
 
-      // ✅ Build buttons
+      // Build buttons
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
         const btn = new Button(this.core, btnData);
 
+        // Add safe click listener that respects menu popup visibility
         btn.addClickListener(async () => {
-          // ⛔ BLOCK if popup open
           if (this.core.menuPopup?.visible) return;
-
           if (this.isLoading) return;
+
           const action = btn.data?.action;
           if (!action) return;
 
-          // ✅ 1. Check resources first
+          // Check resources
           const check = this.statsManager.checkResources(action);
           if (!check.enough) {
             this.popupNotif.show(check.message, "red");
             return;
           }
 
-          // ✅ 2. Apply max_energy first
+          // Apply max_energy
           if (
             typeof action.max_energy === "number" &&
             action.max_energy !== 0
@@ -78,39 +77,33 @@ export class Background {
             this.statsManager.modifyMaxEnergy(action.max_energy);
           }
 
-          // ✅ 3. Apply stat updates
+          // Apply other stats
           this.statsManager.applyStats(action);
 
-          // ✅ 4. Stop if no transition
+          // Stop if no transition
           if (!action.type) return;
 
-          // ✅ 5. Handle transitions
+          // Handle transitions
           this.isLoading = true;
           this.unload();
 
           switch (action.type) {
             case "background": {
-              // 🌀 Update runtime gamestate
               this.core.updateGameState("background", action.target);
-
               const { Background } = await import("./background.js");
               const bg = new Background(this.core, action.target);
               await bg.load();
               this.core.setActiveScene(bg);
               break;
             }
-
             case "scene": {
-              // 🌀 Update runtime gamestate
               this.core.updateGameState("scene", action.target, 0);
-
               const { Scene } = await import("./scene.js");
               const scene = new Scene(this.core, action.target);
               await scene.load();
               this.core.setActiveScene(scene);
               break;
             }
-
             case "function":
               this.executeGameFunction(action.name);
               break;
@@ -122,6 +115,7 @@ export class Background {
         return btn;
       });
 
+      // Initial resize
       this.onResize(this.scale);
       console.debug(`✅ Background ready: ${this.backgroundId}`);
     } catch (err) {
@@ -157,20 +151,29 @@ export class Background {
 
   render(ctx) {
     const canvas = this.core.canvas;
-    if (this.image) {
-      ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
-    } else {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // draw background
+    if (this.image)
+      ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
+    else ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // draw header
     this.header?.render(ctx);
+
+    // draw buttons
     this.buttons.forEach((btn) => btn.render(ctx));
+
+    // draw popup notifications
     this.popupNotif?.render(ctx);
+
+    // overlay if menuPopup visible
     if (this.menuPopup?.visible) {
       ctx.fillStyle = "rgba(0,0,0,0.3)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+
+    // render menu popup on top
     this.menuPopup?.render(ctx);
   }
 }
