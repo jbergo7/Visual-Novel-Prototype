@@ -37,6 +37,7 @@ export class GameCore {
     this.gameState = structuredClone(this.dataCache.gameSettings.gameState);
     this.gameTitle = this.dataCache.gameSettings.gameTitle;
     this.version = this.dataCache.gameSettings.version;
+    this.date_updated = this.dataCache.gameSettings.date_updated;
     console.log("Game Version: " + this.version);
     console.log("✅ Runtime Game State:", this.gameState);
 

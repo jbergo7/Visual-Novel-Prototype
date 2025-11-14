@@ -126,11 +126,32 @@ export class TitleScreen {
     if (this.core.version) {
       const versionFontSize = canvas.height * 0.02;
       ctx.font = `${versionFontSize}px Arial`;
-      ctx.fillStyle = "#aaa";
+      ctx.fillStyle = "#686868";
       ctx.textAlign = "right";
       ctx.textBaseline = "bottom";
       ctx.fillText(
         `v${this.core.version}`,
+        canvas.width - 20,
+        canvas.height - 30
+      );
+    }
+
+    // --- Last Update Version (lower-right) ---
+    if (this.core.date_updated) {
+      const dateObject = new Date(this.core.date_updated);
+      const options = {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      };
+      const formattedDate = dateObject.toLocaleDateString("en-US", options);
+      const date_updatedFontSize = canvas.height * 0.02;
+      ctx.font = `${date_updatedFontSize}px Arial`;
+      ctx.fillStyle = "#686868";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(
+        `Last Update ${formattedDate}`,
         canvas.width - 20,
         canvas.height - 10
       );

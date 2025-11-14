@@ -1,6 +1,7 @@
 {
   "gameTitle": "Visual Novel",
-  "version": "0.1.0",
+  "version": "0.1.1-a",
+  "date_updated": "11-14-2025",
   "gameState": {
     "currentDay": 1,
     "currentTime": "Morning",
