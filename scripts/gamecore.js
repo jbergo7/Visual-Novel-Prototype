@@ -74,9 +74,15 @@ export class GameCore {
   async loadCharacters() {
     const res = await fetch("./data/data-characters.json");
     const data = await res.json();
+
+    // 🔹 Cache original character data
+    this.dataCache.characters = structuredClone(data);
+
+    // 🔹 Runtime copy
     this.characters = data.map((ch) => ({ ...ch }));
     this.currentCharacter =
       this.characters.find((ch) => ch.default === true) || this.characters[0];
+
     console.log("👤 Characters loaded:", this.characters);
   }
 
@@ -158,8 +164,18 @@ export class GameCore {
 
   // 🔥 Always resets to ORIGINAL game settings
   resetGameState() {
+    // Reset main game state
     this.gameState = structuredClone(this.dataCache.gameSettings.gameState);
+
+    // Reset characters to their default stats from cached JSON
+    if (this.dataCache.characters) {
+      this.characters = this.dataCache.characters.map((ch) => ({ ...ch }));
+      this.currentCharacter =
+        this.characters.find((ch) => ch.default === true) || this.characters[0];
+    }
+
     console.log("🔄 Game State reset to default:", this.gameState);
+    console.log("🆕 Characters reset to default:", this.characters);
   }
 
   update() {
