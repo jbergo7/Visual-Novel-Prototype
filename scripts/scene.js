@@ -31,11 +31,11 @@ export class Scene {
     if (!core.menuPopup) core.menuPopup = new MenuPopup(core);
     this.menuPopup = core.menuPopup;
 
-    this.isLoading = false;
-
     // Menu button
-    this.menuButton = new MenuButton(core);
-    this.menuButton.setSize(40);
+    if (!core.menuButton) core.menuButton = new MenuButton(core);
+    this.menuButton = core.menuButton;
+
+    this.isLoading = false;
 
     // Ignore first click after menu toggle (prevents immediate dialogue advance)
     this.ignoreNextClick = false;
@@ -295,9 +295,11 @@ export class Scene {
     this.popupNotif?.onResize(scaleRatio);
 
     const canvas = this.core.canvas;
-    const size = this.menuButton.size || 30;
+    const size = canvas.height * 0.06; // 6% of canvas height
+    this.menuButton.setSize(size);
+
     this.menuButton.x = canvas.width - size - 10;
-    this.menuButton.y = 20;
+    this.menuButton.y = size / 2 + 10; // adjust vertical if needed
   }
 
   render(ctx) {
