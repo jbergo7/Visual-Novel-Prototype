@@ -36,6 +36,8 @@ export class GameCore {
     await this.preloadData();
     await this.loadCharacters();
 
+    await this.loadScene("TitleScreen");
+
     if (!this.dataCache.gameSettings?.gameState) {
       console.error("❌ Invalid or missing game settings JSON");
       return;
@@ -113,6 +115,29 @@ export class GameCore {
     this.currentCharacter =
       this.characters.find((ch) => ch.default === true) || this.characters[0];
     console.log("👤 Characters loaded:", this.characters);
+  }
+
+  async loadScene(name) {
+    // Remove the current scene safely
+    if (this.activeScene?.unload) {
+      this.activeScene.unload();
+    }
+
+    this.activeScene = null;
+
+    // Load the Title Screen
+    if (name === "TitleScreen") {
+      console.log("🔄 Loading Title Screen...");
+
+      const { TitleScreen } = await import("./titlescreen.js");
+
+      const ts = new TitleScreen(this);
+      this.setActiveScene(ts);
+      return;
+    }
+
+    // (Optional) future scenes:
+    console.warn(`⚠️ Unknown scene '${name}'`);
   }
 
   updateGameState(type, target, dialogueIndex = 0) {

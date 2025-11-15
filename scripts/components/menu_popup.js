@@ -81,12 +81,37 @@ export default class MenuPopup {
 
     const btn = this.buttons[index];
 
-    if (btn.id === "resume") {
-      this.close();
-      return;
-    }
+    switch (btn.id) {
+      case "resume":
+        this.close();
+        break;
 
-    console.log("Menu Click:", btn.id);
+      case "load":
+        console.log("Load Game clicked");
+        break;
+
+      case "save":
+        console.log("Save Game clicked");
+        break;
+
+      case "settings":
+        console.log("Settings clicked");
+        break;
+
+      case "title":
+        console.log("Returning to Title Screen...");
+
+        this.close();
+
+        // 👉 Reset or dispose current scene/setup
+        if (this.core.currentScene && this.core.currentScene.dispose) {
+          this.core.currentScene.dispose();
+        }
+
+        // 👉 Load the title screen
+        this.core.loadScene("TitleScreen");
+        break;
+    }
   }
 
   render(ctx) {
