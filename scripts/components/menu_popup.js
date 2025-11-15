@@ -109,6 +109,7 @@ export default class MenuPopup {
         }
 
         // 👉 Load the title screen
+        this.core.hasSave = true;
         this.core.loadScene("TitleScreen");
         break;
     }
