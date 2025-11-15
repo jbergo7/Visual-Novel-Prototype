@@ -14,7 +14,11 @@ export class Scene {
     this.dialogues = [];
     this.currentLine = -1;
 
+    // Track applied stats:
+    // - appliedStats: normal dialogue-applied deltas keyed by dialogue index
+    // - appliedChoiceStats: deltas applied by making a choice (keyed by the choices line index)
     this.appliedStats = {};
+    this.appliedChoiceStats = {};
 
     this.dialogueBox = new DialogueBox(core);
     this.choicesBox = new DialogueChoices(core, (choice) =>
@@ -56,6 +60,7 @@ export class Scene {
 
     this.unload();
 
+    // click handler (advance)
     this.clickHandler = (e) => {
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -78,6 +83,7 @@ export class Scene {
     };
     this.core.canvas.addEventListener("click", this.clickHandler);
 
+    // right-click = previous
     this.backHandler = (e) => {
       if (this.menuPopup.visible) return;
       e.preventDefault();
@@ -85,15 +91,19 @@ export class Scene {
     };
     this.core.canvas.addEventListener("contextmenu", this.backHandler);
 
-    // 🔹 Resume dialogue index from saved state, default to 0
+    // Resume saved index if available, else start at 0
     const saved = this.core.gameState?.currentScene;
     if (saved?.target === this.sceneId && typeof saved.dialogues === "number") {
       this.currentLine = saved.dialogues;
+      // Note: gameState may or may not include saved applied stats.
+      // We only restore what was stored in gameState.appliedStats if present.
+      this.appliedStats = { ...(saved.appliedStats || {}) };
+      this.appliedChoiceStats = { ...(saved.appliedChoiceStats || {}) };
     } else {
       this.currentLine = 0;
     }
 
-    // 🔹 Immediately process any background-only lines up to currentLine
+    // Process background-only lines up to currentLine so visuals match resume point
     for (let i = 0; i < this.currentLine; i++) {
       const dlg = this.dialogues[i];
       if (dlg?.background) {
@@ -101,11 +111,17 @@ export class Scene {
       }
     }
 
-    // 🔹 Render current dialogue or choices
-    const line = this.dialogues[this.currentLine];
-    if (line?.choices) this.choicesBox.setChoices(line.choices);
+    // If current line is a choices line, show choices; else apply nothing here
+    const current = this.dialogues[this.currentLine];
+    if (current?.choices) {
+      this.choicesBox.setChoices(current.choices);
+    } else {
+      // If current is a normal dialogue and its effects were not yet applied
+      // (i.e. not present in appliedStats), do not auto-apply here to avoid double-apply.
+      // We assume applyStats is run when advancing into a dialogue normally.
+    }
 
-    // ✅ Update game state for current scene/dialogue
+    // Update runtime game state to reflect where we are
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
   }
 
@@ -118,13 +134,62 @@ export class Scene {
     this.choicesBox.clear();
   }
 
-  async nextDialogue() {
-    if (this.isLoading || this.choicesBox.choices.length > 0) return;
+  // process current line (do not increment) - handles background skip, choices, normal dialogue
+  async processLine() {
+    if (this.currentLine < 0 || this.currentLine >= this.dialogues.length)
+      return;
 
+    const obj = this.dialogues[this.currentLine];
+
+    // background-only lines: perform change and automatically advance to next line
+    if (obj?.background) {
+      await this.changeBackground(obj.background, obj.transition);
+      // advance to next real dialogue after background
+      this.currentLine++;
+      // guard against overflow
+      if (this.currentLine >= this.dialogues.length) {
+        if (this.data.goto) {
+          await this.core.updateGameState("background", this.data.goto);
+          this.unload();
+          const { Background } = await import("./background.js");
+          const bg = new Background(this.core, this.data.goto);
+          await bg.load();
+          this.core.setActiveScene(bg);
+        }
+        return;
+      }
+      // recursively process next (in case there are consecutive background entries)
+      await this.processLine();
+      return;
+    }
+
+    // choices line: display choices and update state
+    if (obj?.choices) {
+      this.choicesBox.setChoices(obj.choices);
+      this.core.updateGameState("scene", this.sceneId, this.currentLine);
+      this.render(this.core.ctx);
+      return;
+    }
+
+    // normal dialogue: apply stats (if not already applied)
+    if (!this.appliedStats.hasOwnProperty(this.currentLine)) {
+      this.applyStats(obj, this.currentLine);
+    }
+
+    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    this.render(this.core.ctx);
+  }
+
+  async nextDialogue() {
+    if (this.isLoading) return;
+
+    // if choices are visible, don't auto-advance (user must select a choice)
+    if (this.choicesBox.choices.length > 0) return;
+
+    // increment and process
     this.currentLine++;
     if (this.currentLine >= this.dialogues.length) {
       if (this.data.goto) {
-        // Switch to the next scene's background automatically
         await this.core.updateGameState("background", this.data.goto);
         this.unload();
         const { Background } = await import("./background.js");
@@ -135,97 +200,126 @@ export class Scene {
       return;
     }
 
-    const current = this.dialogues[this.currentLine];
-    if (!current) return;
-
-    // 🔹 Handle background lines automatically
-    if (current.background) {
-      await this.changeBackground(current.background, current.transition);
-      this.nextDialogue();
-      return;
-    }
-
-    // 🔹 Handle dialogue choices
-    if (current.choices) {
-      this.choicesBox.setChoices(current.choices);
-      this.core.updateGameState("scene", this.sceneId, this.currentLine);
-      return;
-    }
-
-    // 🔹 Apply stats if any
-    const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
-    if (typeof current.max_energy === "number" && current.max_energy !== 0) {
-      this.statsManager.modifyMaxEnergy(current.max_energy);
-      deltas.max_energy = current.max_energy;
-    }
-    if (current.money !== undefined) {
-      this.statsManager.applyStats({ money: current.money });
-      if (typeof current.money === "number") deltas.money = current.money;
-    }
-    if (current.energy !== undefined) {
-      const c = this.core.currentCharacter;
-      deltas.prevEnergy = c?.energy ?? null;
-      this.statsManager.applyStats({ energy: current.energy });
-      if (typeof current.energy === "number") deltas.energy = current.energy;
-      else if (current.energy === "reset") deltas.energy = "reset";
-    }
-    this.appliedStats[this.currentLine] = deltas;
-
-    // ✅ Update game state after dialogue line
-    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    await this.processLine();
   }
 
   async prevDialogue() {
     if (this.isLoading) return;
-    if (this.choicesBox.choices.length > 0) this.choicesBox.clear();
+
+    // if choices are visible currently, just clear them (stay on same line)
+    if (this.choicesBox.choices.length > 0) {
+      this.choicesBox.clear();
+      this.render(this.core.ctx);
+      return;
+    }
+
     if (this.currentLine <= 0) return;
 
-    const nextLineIndex = this.currentLine;
-    const next = this.dialogues[nextLineIndex];
+    // Revert any stats that were applied on the current line (normal dialogue)
+    this.revertStats(this.currentLine);
 
-    const deltas = this.appliedStats[nextLineIndex];
-    if (deltas) {
-      const reverse = {};
-      if (typeof deltas.money === "number" && deltas.money !== 0)
-        reverse.money = -deltas.money;
-      if (deltas.energy !== undefined) {
-        if (deltas.energy === "reset" && deltas.prevEnergy !== null) {
-          const c = this.core.currentCharacter;
-          c.energy = deltas.prevEnergy;
-          this.popupNotif?.show("Energy Reverted", "yellow");
-        } else if (typeof deltas.energy === "number" && deltas.energy !== 0)
-          reverse.energy = -deltas.energy;
-      }
-      if (typeof deltas.max_energy === "number" && deltas.max_energy !== 0) {
-        this.statsManager.modifyMaxEnergy(-deltas.max_energy);
-      }
-      if (Object.keys(reverse).length > 0)
-        this.statsManager.applyStats(reverse);
-      delete this.appliedStats[nextLineIndex];
+    // If previous line was a choices line and the player previously selected a choice
+    // we must revert the choice effects stored in appliedChoiceStats[prevIndex]
+    const prevIndex = this.currentLine - 1;
+    if (this.appliedChoiceStats[prevIndex]) {
+      this.revertChoiceStats(prevIndex);
     }
 
-    this.currentLine--;
+    // move back
+    this.currentLine = prevIndex;
 
+    // If landed on a choices line, show choices
     const prev = this.dialogues[this.currentLine];
-    if (next?.background) {
-      const previousBgLine = [...this.dialogues]
-        .slice(0, this.currentLine + 1)
-        .reverse()
-        .find((d) => d.background);
-      const newBgId = previousBgLine?.background || this.data.background;
-      if (newBgId && newBgId !== next.background)
-        await this.changeBackground(newBgId, "fade");
+    if (prev?.choices) {
+      this.choicesBox.setChoices(prev.choices);
+    } else {
+      // if it's a normal dialogue line and its stats weren't applied yet (rare), ensure display
+      if (!this.appliedStats[this.currentLine]) {
+        // do not auto-apply here; let user advance to apply normally
+      }
     }
 
-    if (prev?.choices) this.choicesBox.setChoices(prev.choices);
-
-    // ✅ Use updateGameState instead of direct mutation
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
-
     this.render(this.core.ctx);
   }
 
+  applyStats(obj, index) {
+    const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
+    if (typeof obj.max_energy === "number" && obj.max_energy !== 0) {
+      this.statsManager.modifyMaxEnergy(obj.max_energy);
+      deltas.max_energy = obj.max_energy;
+    }
+    if (obj.money !== undefined) {
+      this.statsManager.applyStats({ money: obj.money });
+      if (typeof obj.money === "number") deltas.money = obj.money;
+    }
+    if (obj.energy !== undefined) {
+      const c = this.core.currentCharacter;
+      deltas.prevEnergy = c?.energy ?? null;
+      this.statsManager.applyStats({ energy: obj.energy });
+      if (typeof obj.energy === "number") deltas.energy = obj.energy;
+      else if (obj.energy === "reset") deltas.energy = "reset";
+    }
+
+    this.appliedStats[index] = deltas;
+  }
+
+  revertStats(index) {
+    const deltas = this.appliedStats[index];
+    if (!deltas) return;
+
+    const reverse = {};
+    if (typeof deltas.money === "number" && deltas.money !== 0)
+      reverse.money = -deltas.money;
+
+    if (deltas.energy !== undefined) {
+      if (deltas.energy === "reset" && deltas.prevEnergy !== null) {
+        const c = this.core.currentCharacter;
+        c.energy = deltas.prevEnergy;
+        this.popupNotif?.show("Energy Reverted", "yellow");
+      } else if (typeof deltas.energy === "number" && deltas.energy !== 0) {
+        reverse.energy = -deltas.energy;
+      }
+    }
+
+    if (typeof deltas.max_energy === "number" && deltas.max_energy !== 0)
+      this.statsManager.modifyMaxEnergy(-deltas.max_energy);
+
+    if (Object.keys(reverse).length > 0) this.statsManager.applyStats(reverse);
+
+    delete this.appliedStats[index];
+  }
+
+  // choice-specific apply/revert
+  revertChoiceStats(choiceIndex) {
+    const deltas = this.appliedChoiceStats[choiceIndex];
+    if (!deltas) return;
+
+    const reverse = {};
+    if (typeof deltas.money === "number" && deltas.money !== 0)
+      reverse.money = -deltas.money;
+
+    if (deltas.energy !== undefined) {
+      if (deltas.energy === "reset" && deltas.prevEnergy !== null) {
+        const c = this.core.currentCharacter;
+        c.energy = deltas.prevEnergy;
+        this.popupNotif?.show("Energy Reverted", "yellow");
+      } else if (typeof deltas.energy === "number" && deltas.energy !== 0) {
+        reverse.energy = -deltas.energy;
+      }
+    }
+
+    if (typeof deltas.max_energy === "number" && deltas.max_energy !== 0)
+      this.statsManager.modifyMaxEnergy(-deltas.max_energy);
+
+    if (Object.keys(reverse).length > 0) this.statsManager.applyStats(reverse);
+
+    delete this.appliedChoiceStats[choiceIndex];
+  }
+
   handleChoice(choice) {
+    // apply choice stats and store under the choices line index
+    const idx = this.currentLine; // choices line index
     const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
 
     if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
@@ -246,9 +340,10 @@ export class Scene {
       else if (choice.energy === "reset") deltas.energy = "reset";
     }
 
-    // Track applied stats for possible revert
-    this.appliedStats[this.currentLine] = deltas;
+    // store choice deltas so we can revert if player goes back
+    this.appliedChoiceStats[idx] = deltas;
 
+    // goto_scene choices immediately switch scene
     if (choice.goto_scene) {
       this.unload();
       import("./scene.js").then(async (mod) => {
@@ -259,11 +354,11 @@ export class Scene {
       return;
     }
 
-    // 🔹 Clear choices first before advancing
+    // clear choices then advance to next real dialogue and process it
     this.choicesBox.clear();
-
-    // 🔹 Advance dialogue immediately after choice
-    this.nextDialogue();
+    this.currentLine = idx + 1;
+    // process the new current line (will apply normal dialogue stats if any)
+    this.processLine();
   }
 
   async changeBackground(bgId, transition) {
@@ -300,7 +395,6 @@ export class Scene {
       });
     } else this.image = newImg;
 
-    // ✅ Update game state for background
     this.core.updateGameState("background", bgId);
   }
 
@@ -326,7 +420,10 @@ export class Scene {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    const line = this.dialogues[this.currentLine];
+    const line =
+      this.dialogues[
+        Math.max(0, Math.min(this.currentLine, this.dialogues.length - 1))
+      ];
     if (line?.speaker && line?.text)
       this.dialogueBox.render(ctx, line.speaker, line.text);
 
