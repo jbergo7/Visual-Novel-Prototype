@@ -19,6 +19,13 @@ export class GameCore {
       gameSettings: null,
     };
 
+    // for toggle popup menu
+    this.canvas.addEventListener("click", (e) => {
+      if (this.activeScene?.handleGlobalClick) {
+        this.activeScene.handleGlobalClick(e);
+      }
+    });
+
     // ✅ Mutable runtime state
     this.gameState = null;
 

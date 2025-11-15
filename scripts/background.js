@@ -29,13 +29,8 @@ export class Background {
     this.menuButton = core.menuButton;
     this.menuPopup = core.menuPopup;
 
-    // add click listener instead of core.input
-    this._clickHandler = (e) => this.handleCanvasClick(e);
-    this.core.canvas.addEventListener("click", this._clickHandler);
-  }
-
-  dispose() {
-    this.core.canvas.removeEventListener("click", this._clickHandler);
+    // no per-background listener
+    // core should handle clicks globally and delegate to active scene
   }
 
   async load() {
@@ -44,24 +39,22 @@ export class Background {
 
     try {
       const bgCache = this.core.dataCache?.backgrounds;
-      if (!bgCache) throw new Error("Background data not found in cache");
-
       this.bgData = bgCache[this.backgroundId];
+
       if (!this.bgData)
         throw new Error(`Background '${this.backgroundId}' not found.`);
 
       console.debug(`🎨 Loading background: ${this.backgroundId}`);
 
-      // Load BG Image
+      // Load image
       const img = new Image();
       img.src = this.bgData.image;
       await new Promise((r) => (img.onload = r));
       this.image = img;
 
-      // clear old buttons
       this.unload();
 
-      // build new buttons
+      // Create buttons
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
         const btn = new Button(this.core, btnData);
 
@@ -72,14 +65,12 @@ export class Background {
           const action = btn.data?.action;
           if (!action) return;
 
-          // resource check
           const check = this.statsManager.checkResources(action);
           if (!check.enough) {
             this.popupNotif.show(check.message, "red");
             return;
           }
 
-          // modify max energy
           if (
             typeof action.max_energy === "number" &&
             action.max_energy !== 0
@@ -94,7 +85,6 @@ export class Background {
           this.isLoading = true;
           this.unload();
 
-          // background / scene transitions
           switch (action.type) {
             case "background": {
               this.core.updateGameState("background", action.target);
@@ -124,7 +114,6 @@ export class Background {
       });
 
       this.onResize(this.scale);
-
       console.debug(`✅ Background ready: ${this.backgroundId}`);
     } catch (err) {
       console.error("❌ Failed to load background:", err);
@@ -144,12 +133,6 @@ export class Background {
     this.buttons.forEach((btn) => btn.resize(scale));
     this.header?.onResize(scale);
     this.popupNotif?.onResize(scale);
-
-    // place global menu button (header also adjusts it)
-    const canvas = this.core.canvas;
-    const size = this.menuButton.size || 30;
-    this.menuButton.x = canvas.width - size - 10;
-    this.menuButton.y = 20;
   }
 
   executeGameFunction(name) {
@@ -164,56 +147,40 @@ export class Background {
     }
   }
 
-  // THIS is the fixed click handler
-  handleCanvasClick(e) {
+  // 🔥 called by global core click listener
+  handleGlobalClick(e) {
     const rect = this.core.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // 1. Menu button toggle
+    // 1️⃣ Menu button toggle
     if (this.menuButton.containsPoint(x, y)) {
       this.menuPopup.toggle();
       return;
     }
 
-    // 2. If menu is open → block everything except popup
-    if (this.menuPopup.visible) {
-      return;
-    }
-
-    // 3. Background buttons
+    // 2️⃣ Block background buttons if menu is visible
+    if (this.menuPopup.visible) return;
   }
 
   render(ctx) {
     const canvas = this.core.canvas;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // draw BG
-    if (this.image) {
+    if (this.image)
       ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
-    } else {
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    else ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // header
     this.header?.render(ctx);
-
-    // background buttons
     this.buttons.forEach((btn) => btn.render(ctx));
-
-    // notifications
     this.popupNotif?.render(ctx);
 
-    // dim if menu is open
     if (this.menuPopup.visible) {
       ctx.fillStyle = "rgba(0,0,0,0.4)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // menu button
     this.menuButton.render(ctx);
-
-    // popup menu (final layer)
     this.menuPopup.render(ctx);
   }
 }
