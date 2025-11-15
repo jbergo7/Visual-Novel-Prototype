@@ -14,6 +14,7 @@ export class Scene {
     this.dialogues = [];
     this.currentLine = -1;
 
+    // Track applied stats per dialogue
     this.appliedStats = {};
 
     this.dialogueBox = new DialogueBox(core);
@@ -56,6 +57,7 @@ export class Scene {
 
     this.unload();
 
+    // Unified click handler
     this.clickHandler = (e) => {
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -78,6 +80,7 @@ export class Scene {
     };
     this.core.canvas.addEventListener("click", this.clickHandler);
 
+    // Right-click = go back
     this.backHandler = (e) => {
       if (this.menuPopup.visible) return;
       e.preventDefault();
@@ -85,15 +88,16 @@ export class Scene {
     };
     this.core.canvas.addEventListener("contextmenu", this.backHandler);
 
-    // 🔹 Resume dialogue index from saved state, default to 0
+    // 🔹 Resume dialogue index and appliedStats from saved state
     const saved = this.core.gameState?.currentScene;
     if (saved?.target === this.sceneId && typeof saved.dialogues === "number") {
       this.currentLine = saved.dialogues;
+      this.appliedStats = { ...(saved.appliedStats || {}) };
     } else {
       this.currentLine = 0;
     }
 
-    // 🔹 Immediately process any background-only lines up to currentLine
+    // 🔹 Process any background-only lines up to currentLine
     for (let i = 0; i < this.currentLine; i++) {
       const dlg = this.dialogues[i];
       if (dlg?.background) {
@@ -106,7 +110,12 @@ export class Scene {
     if (line?.choices) this.choicesBox.setChoices(line.choices);
 
     // ✅ Update game state for current scene/dialogue
-    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    this.core.updateGameState(
+      "scene",
+      this.sceneId,
+      this.currentLine,
+      this.appliedStats
+    );
   }
 
   unload() {
@@ -124,7 +133,6 @@ export class Scene {
     this.currentLine++;
     if (this.currentLine >= this.dialogues.length) {
       if (this.data.goto) {
-        // Switch to the next scene's background automatically
         await this.core.updateGameState("background", this.data.goto);
         this.unload();
         const { Background } = await import("./background.js");
@@ -138,7 +146,7 @@ export class Scene {
     const current = this.dialogues[this.currentLine];
     if (!current) return;
 
-    // 🔹 Handle background lines automatically
+    // 🔹 Skip background-only lines
     if (current.background) {
       await this.changeBackground(current.background, current.transition);
       this.nextDialogue();
@@ -148,7 +156,12 @@ export class Scene {
     // 🔹 Handle dialogue choices
     if (current.choices) {
       this.choicesBox.setChoices(current.choices);
-      this.core.updateGameState("scene", this.sceneId, this.currentLine);
+      this.core.updateGameState(
+        "scene",
+        this.sceneId,
+        this.currentLine,
+        this.appliedStats
+      );
       return;
     }
 
@@ -171,8 +184,12 @@ export class Scene {
     }
     this.appliedStats[this.currentLine] = deltas;
 
-    // ✅ Update game state after dialogue line
-    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    this.core.updateGameState(
+      "scene",
+      this.sceneId,
+      this.currentLine,
+      this.appliedStats
+    );
   }
 
   async prevDialogue() {
@@ -180,10 +197,12 @@ export class Scene {
     if (this.choicesBox.choices.length > 0) this.choicesBox.clear();
     if (this.currentLine <= 0) return;
 
-    const nextLineIndex = this.currentLine;
-    const next = this.dialogues[nextLineIndex];
+    // Decrement first because we want to revert the line we just passed
+    const currentIndex = this.currentLine;
+    this.currentLine--;
 
-    const deltas = this.appliedStats[nextLineIndex];
+    // 🔹 Revert stats for the dialogue we're moving back to
+    const deltas = this.appliedStats[currentIndex];
     if (deltas) {
       const reverse = {};
       if (typeof deltas.money === "number" && deltas.money !== 0)
@@ -196,36 +215,30 @@ export class Scene {
         } else if (typeof deltas.energy === "number" && deltas.energy !== 0)
           reverse.energy = -deltas.energy;
       }
-      if (typeof deltas.max_energy === "number" && deltas.max_energy !== 0) {
+      if (typeof deltas.max_energy === "number" && deltas.max_energy !== 0)
         this.statsManager.modifyMaxEnergy(-deltas.max_energy);
-      }
+
       if (Object.keys(reverse).length > 0)
         this.statsManager.applyStats(reverse);
-      delete this.appliedStats[nextLineIndex];
-    }
 
-    this.currentLine--;
+      delete this.appliedStats[currentIndex];
+    }
 
     const prev = this.dialogues[this.currentLine];
-    if (next?.background) {
-      const previousBgLine = [...this.dialogues]
-        .slice(0, this.currentLine + 1)
-        .reverse()
-        .find((d) => d.background);
-      const newBgId = previousBgLine?.background || this.data.background;
-      if (newBgId && newBgId !== next.background)
-        await this.changeBackground(newBgId, "fade");
-    }
-
     if (prev?.choices) this.choicesBox.setChoices(prev.choices);
 
-    // ✅ Use updateGameState instead of direct mutation
-    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    this.core.updateGameState(
+      "scene",
+      this.sceneId,
+      this.currentLine,
+      this.appliedStats
+    );
 
     this.render(this.core.ctx);
   }
 
   handleChoice(choice) {
+    // Stats to apply
     const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
 
     if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
@@ -246,8 +259,8 @@ export class Scene {
       else if (choice.energy === "reset") deltas.energy = "reset";
     }
 
-    // Track applied stats for possible revert
-    this.appliedStats[this.currentLine] = deltas;
+    // 🔹 Save applied stats under NEXT line because dialogue will advance
+    this.appliedStats[this.currentLine + 1] = deltas;
 
     if (choice.goto_scene) {
       this.unload();
@@ -259,10 +272,8 @@ export class Scene {
       return;
     }
 
-    // 🔹 Clear choices first before advancing
+    // 🔹 Clear choices and advance
     this.choicesBox.clear();
-
-    // 🔹 Advance dialogue immediately after choice
     this.nextDialogue();
   }
 
@@ -300,7 +311,6 @@ export class Scene {
       });
     } else this.image = newImg;
 
-    // ✅ Update game state for background
     this.core.updateGameState("background", bgId);
   }
 

@@ -14,6 +14,7 @@ export class Scene {
     this.dialogues = [];
     this.currentLine = -1;
 
+    // Track applied stat changes per dialogue
     this.appliedStats = {};
 
     this.dialogueBox = new DialogueBox(core);
@@ -30,10 +31,13 @@ export class Scene {
     if (!core.menuPopup) core.menuPopup = new MenuPopup(core);
     this.menuPopup = core.menuPopup;
 
+    // Menu button
     if (!core.menuButton) core.menuButton = new MenuButton(core);
     this.menuButton = core.menuButton;
 
     this.isLoading = false;
+
+    // Ignore first click after menu toggle (prevents immediate dialogue advance)
     this.ignoreNextClick = false;
   }
 
@@ -44,10 +48,10 @@ export class Scene {
     if (!this.data) return;
     this.dialogues = this.data.dialogues || [];
 
-    // Load initial background
+    // Load background
     const bgCache = this.core.dataCache?.backgrounds;
-    const initialBgId = this.data.background || "home";
-    const bg = bgCache?.[initialBgId];
+    const bgId = this.data.background || "home";
+    const bg = bgCache?.[bgId];
     if (bg?.image) {
       this.image = new Image();
       this.image.src = bg.image;
@@ -56,28 +60,34 @@ export class Scene {
 
     this.unload();
 
+    // Unified click handler
     this.clickHandler = (e) => {
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
+      // Check menu button first
       if (this.menuButton.containsPoint(x, y)) {
         this.menuPopup.toggle();
         this.ignoreNextClick = true;
-        return;
+        return; // stop → do NOT advance dialogue
       }
 
+      // If menu just closed, ignore this click
       if (this.ignoreNextClick) {
         this.ignoreNextClick = false;
         return;
       }
 
+      // Block dialogue if menu is visible
       if (this.menuPopup.visible) return;
 
+      // Advance dialogue
       this.nextDialogue();
     };
     this.core.canvas.addEventListener("click", this.clickHandler);
 
+    // Right-click = go back
     this.backHandler = (e) => {
       if (this.menuPopup.visible) return;
       e.preventDefault();
@@ -85,28 +95,12 @@ export class Scene {
     };
     this.core.canvas.addEventListener("contextmenu", this.backHandler);
 
-    // 🔹 Resume dialogue index from saved state, default to 0
+    // Resume from saved dialogue index
+    this.currentLine = -1;
     const saved = this.core.gameState?.currentScene;
     if (saved?.target === this.sceneId && typeof saved.dialogues === "number") {
-      this.currentLine = saved.dialogues;
-    } else {
-      this.currentLine = 0;
+      this.currentLine = saved.dialogues - 1;
     }
-
-    // 🔹 Immediately process any background-only lines up to currentLine
-    for (let i = 0; i < this.currentLine; i++) {
-      const dlg = this.dialogues[i];
-      if (dlg?.background) {
-        await this.changeBackground(dlg.background, dlg.transition);
-      }
-    }
-
-    // 🔹 Render current dialogue or choices
-    const line = this.dialogues[this.currentLine];
-    if (line?.choices) this.choicesBox.setChoices(line.choices);
-
-    // ✅ Update game state for current scene/dialogue
-    this.core.updateGameState("scene", this.sceneId, this.currentLine);
   }
 
   unload() {
@@ -124,8 +118,6 @@ export class Scene {
     this.currentLine++;
     if (this.currentLine >= this.dialogues.length) {
       if (this.data.goto) {
-        // Switch to the next scene's background automatically
-        await this.core.updateGameState("background", this.data.goto);
         this.unload();
         const { Background } = await import("./background.js");
         const bg = new Background(this.core, this.data.goto);
@@ -138,30 +130,18 @@ export class Scene {
     const current = this.dialogues[this.currentLine];
     if (!current) return;
 
-    // 🔹 Handle background lines automatically
-    if (current.background) {
-      await this.changeBackground(current.background, current.transition);
-      this.nextDialogue();
-      return;
-    }
-
-    // 🔹 Handle dialogue choices
-    if (current.choices) {
-      this.choicesBox.setChoices(current.choices);
-      this.core.updateGameState("scene", this.sceneId, this.currentLine);
-      return;
-    }
-
-    // 🔹 Apply stats if any
     const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
+
     if (typeof current.max_energy === "number" && current.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(current.max_energy);
       deltas.max_energy = current.max_energy;
     }
+
     if (current.money !== undefined) {
       this.statsManager.applyStats({ money: current.money });
       if (typeof current.money === "number") deltas.money = current.money;
     }
+
     if (current.energy !== undefined) {
       const c = this.core.currentCharacter;
       deltas.prevEnergy = c?.energy ?? null;
@@ -169,10 +149,27 @@ export class Scene {
       if (typeof current.energy === "number") deltas.energy = current.energy;
       else if (current.energy === "reset") deltas.energy = "reset";
     }
+
     this.appliedStats[this.currentLine] = deltas;
 
-    // ✅ Update game state after dialogue line
-    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    if (current.choices) {
+      this.choicesBox.setChoices(current.choices);
+      return;
+    }
+
+    if (current.background) {
+      await this.changeBackground(current.background, current.transition);
+      this.nextDialogue();
+      return;
+    }
+
+    if (this.core.gameState) {
+      this.core.gameState.currentScene = {
+        target: this.sceneId,
+        dialogues: this.currentLine,
+        active: true,
+      };
+    }
   }
 
   async prevDialogue() {
@@ -219,25 +216,22 @@ export class Scene {
 
     if (prev?.choices) this.choicesBox.setChoices(prev.choices);
 
-    // ✅ Use updateGameState instead of direct mutation
-    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    if (this.core.gameState)
+      this.core.gameState.currentScene.dialogues = this.currentLine;
 
     this.render(this.core.ctx);
   }
 
   handleChoice(choice) {
     const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
-
     if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(choice.max_energy);
       deltas.max_energy = choice.max_energy;
     }
-
     if (choice.money !== undefined) {
       this.statsManager.applyStats({ money: choice.money });
       if (typeof choice.money === "number") deltas.money = choice.money;
     }
-
     if (choice.energy !== undefined) {
       const c = this.core.currentCharacter;
       deltas.prevEnergy = c?.energy ?? null;
@@ -246,7 +240,6 @@ export class Scene {
       else if (choice.energy === "reset") deltas.energy = "reset";
     }
 
-    // Track applied stats for possible revert
     this.appliedStats[this.currentLine] = deltas;
 
     if (choice.goto_scene) {
@@ -259,10 +252,6 @@ export class Scene {
       return;
     }
 
-    // 🔹 Clear choices first before advancing
-    this.choicesBox.clear();
-
-    // 🔹 Advance dialogue immediately after choice
     this.nextDialogue();
   }
 
@@ -299,9 +288,6 @@ export class Scene {
         step();
       });
     } else this.image = newImg;
-
-    // ✅ Update game state for background
-    this.core.updateGameState("background", bgId);
   }
 
   onResize(scaleRatio) {
@@ -309,11 +295,11 @@ export class Scene {
     this.popupNotif?.onResize(scaleRatio);
 
     const canvas = this.core.canvas;
-    const size = canvas.height * 0.06;
+    const size = canvas.height * 0.06; // 6% of canvas height
     this.menuButton.setSize(size);
 
     this.menuButton.x = canvas.width - size - 10;
-    this.menuButton.y = size / 2 + 10;
+    this.menuButton.y = size / 2 + 10; // adjust vertical if needed
   }
 
   render(ctx) {
