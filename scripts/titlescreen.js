@@ -194,33 +194,48 @@ export class TitleScreen {
   }
 
   async startNewGame() {
-    // ★ New Game → remove continue option
+    // NEW GAME → remove Continue
     this.core.hasSave = false;
 
+    // Remove TitleScreen event listeners
     this.unload();
+
+    // Reset to original clean gameState
+    this.core.resetGameState();
+
+    // IMPORTANT: use the NEW gameState AFTER reset
     const gameState = this.core.gameState;
 
-    if (!gameState) {
-      console.error("❌ No runtime gameState found!");
-      return;
-    }
-
-    // Same logic as before...
     let started = false;
 
-    if (gameState.currentBackground?.active) {
+    // Start with background if default says so
+    if (
+      gameState.currentBackground?.active &&
+      gameState.currentBackground.target
+    ) {
       const bg = new Background(this.core, gameState.currentBackground.target);
       await bg.load();
       this.core.setActiveScene(bg);
       started = true;
     }
 
-    if (!started && gameState.currentScene?.active) {
+    // Start with scene if default says so
+    if (
+      !started &&
+      gameState.currentScene?.active &&
+      gameState.currentScene.target
+    ) {
       const scene = new Scene(this.core, gameState.currentScene.target);
       await scene.load();
       scene.currentLine = gameState.currentScene.dialogues || 0;
       this.core.setActiveScene(scene);
       started = true;
+    }
+
+    if (!started) {
+      console.warn(
+        "⚠ No default starting scene or background in gameSettings!"
+      );
     }
   }
 

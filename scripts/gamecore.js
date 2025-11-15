@@ -8,25 +8,25 @@ export class GameCore {
     this.scaleRatio = 1;
     this.activeScene = null;
 
-    // ✅ Runtime global data
+    // Runtime data
     this.characters = [];
     this.currentCharacter = null;
 
-    // ✅ Cached JSON data
+    // Cached JSON
     this.dataCache = {
       backgrounds: null,
       scenes: null,
       gameSettings: null,
     };
 
-    // for toggle popup menu
+    // Global click handler
     this.canvas.addEventListener("click", (e) => {
       if (this.activeScene?.handleGlobalClick) {
         this.activeScene.handleGlobalClick(e);
       }
     });
 
-    // ✅ Mutable runtime state
+    // Mutable save data
     this.gameState = null;
 
     window.addEventListener("resize", () => this.resizeCanvas());
@@ -36,57 +36,20 @@ export class GameCore {
     await this.preloadData();
     await this.loadCharacters();
 
-    await this.loadScene("TitleScreen");
+    // 🔥 Always start with a fresh NEW GAME state
+    this.resetGameState();
 
-    if (!this.dataCache.gameSettings?.gameState) {
-      console.error("❌ Invalid or missing game settings JSON");
-      return;
-    }
-
-    this.gameState = structuredClone(this.dataCache.gameSettings.gameState);
     this.gameTitle = this.dataCache.gameSettings.gameTitle;
     this.version = this.dataCache.gameSettings.version;
     this.date_updated = this.dataCache.gameSettings.date_updated;
+
     console.log("Game Version: " + this.version);
-    console.log("✅ Runtime Game State:", this.gameState);
+    console.log("🆕 Fresh Runtime Game State:", this.gameState);
+
+    // 🔥 Show ONLY the Title Screen
+    await this.loadScene("TitleScreen");
 
     this.resizeCanvas();
-    let started = false;
-
-    // 🔹 1️⃣ If SCENE is active
-    if (this.gameState.currentScene?.active) {
-      const sceneTarget = this.gameState.currentScene.target;
-      const dialogueIndex = this.gameState.currentScene.dialogues || 0;
-
-      if (sceneTarget) {
-        const { Scene } = await import("./scene.js");
-        const scene = new Scene(this, sceneTarget);
-        await scene.load(dialogueIndex);
-        this.setActiveScene(scene);
-        console.log(
-          `🎬 Started scene '${sceneTarget}' (dialogue ${dialogueIndex})`
-        );
-        started = true;
-      }
-    }
-
-    // 🔹 2️⃣ If BACKGROUND is active
-    if (!started && this.gameState.currentBackground?.active) {
-      const bgTarget = this.gameState.currentBackground.target;
-      if (bgTarget) {
-        const { Background } = await import("./background.js");
-        const bg = new Background(this, bgTarget);
-        await bg.load();
-        this.setActiveScene(bg);
-        console.log(`🏠 Started background '${bgTarget}'`);
-        started = true;
-      }
-    }
-
-    if (!started) {
-      console.warn("⚠️ No active background or scene found in settings!");
-    }
-
     this.startGameLoop();
   }
 
@@ -118,30 +81,26 @@ export class GameCore {
   }
 
   async loadScene(name) {
-    // Remove the current scene safely
     if (this.activeScene?.unload) {
       this.activeScene.unload();
     }
 
     this.activeScene = null;
 
-    // Load the Title Screen
     if (name === "TitleScreen") {
       console.log("🔄 Loading Title Screen...");
-
       const { TitleScreen } = await import("./titlescreen.js");
-
       const ts = new TitleScreen(this);
       this.setActiveScene(ts);
       return;
     }
 
-    // (Optional) future scenes:
     console.warn(`⚠️ Unknown scene '${name}'`);
   }
 
   updateGameState(type, target, dialogueIndex = 0) {
     if (!this.gameState) return;
+
     const { currentBackground, currentScene } = this.gameState;
     if (!currentBackground || !currentScene) {
       console.warn("⚠️ Invalid gameState structure.");
@@ -151,6 +110,7 @@ export class GameCore {
     if (type === "background") {
       currentBackground.active = true;
       currentBackground.target = target;
+
       currentScene.active = false;
       currentScene.target = null;
       currentScene.dialogues = 0;
@@ -158,6 +118,7 @@ export class GameCore {
 
     if (type === "scene") {
       currentBackground.active = false;
+
       currentScene.active = true;
       currentScene.target = target;
       currentScene.dialogues = dialogueIndex ?? 0;
@@ -193,6 +154,12 @@ export class GameCore {
       requestAnimationFrame(loop);
     };
     loop();
+  }
+
+  // 🔥 Always resets to ORIGINAL game settings
+  resetGameState() {
+    this.gameState = structuredClone(this.dataCache.gameSettings.gameState);
+    console.log("🔄 Game State reset to default:", this.gameState);
   }
 
   update() {
