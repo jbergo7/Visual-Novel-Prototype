@@ -6,7 +6,7 @@ export class TitleScreen {
     this.core = core;
     this.buttons = [];
     this.backgroundColor = "#1a1a1a";
-    this.hoveredButtonIndex = null; // ✅ track hover
+    this.hoveredButtonIndex = null;
 
     // Font size ratios
     this.titleMinRatio = 0.04;
@@ -16,9 +16,9 @@ export class TitleScreen {
 
     this.updateLayout();
 
-    // Store reference for cleanup
+    // Event listeners
     this.clickHandler = (e) => this.handleClick(e);
-    this.mouseMoveHandler = (e) => this.handleMouseMove(e); // ✅ hover tracking
+    this.mouseMoveHandler = (e) => this.handleMouseMove(e);
     this.core.canvas.addEventListener("click", this.clickHandler);
     this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
   }
@@ -59,22 +59,33 @@ export class TitleScreen {
         y: baseY + buttonSpacing * 2,
       },
     ];
+
+    // Calculate maximum text width for equal button width
+    const ctx = this.core.ctx;
+    let maxTextWidth = 0;
+    this.buttons.forEach((btn) => {
+      const fontSize = canvas.height * 0.035;
+      ctx.font = `${fontSize}px Arial`;
+      const textWidth = ctx.measureText(btn.text).width;
+      if (textWidth > maxTextWidth) maxTextWidth = textWidth;
+    });
+
+    this.buttons.forEach((btn) => {
+      btn.width = maxTextWidth + 40; // padding X = 20 each side
+      btn.height = canvas.height * 0.035 * 1.2 + 20; // padding Y = 10 each side
+    });
   }
 
   handleMouseMove(e) {
     const rect = this.core.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const canvas = this.core.canvas;
 
     this.hoveredButtonIndex = null;
 
     this.buttons.forEach((btn, index) => {
-      const fontSize = canvas.height * 0.035;
-      const textHeight = fontSize * 1.2;
-      const textWidth = this.core.ctx.measureText(btn.text).width;
-      const halfWidth = textWidth / 2;
-      const halfHeight = textHeight / 2;
+      const halfWidth = btn.width / 2;
+      const halfHeight = btn.height / 2;
 
       if (
         mouseX > btn.x - halfWidth &&
@@ -106,7 +117,7 @@ export class TitleScreen {
     ctx.font = `${titleFontSize}px Arial`;
     ctx.fillText("My Visual Novel", canvas.width / 2, canvas.height * 0.3);
 
-    // --- Buttons ---
+    // --- Buttons with equal width boxes ---
     this.buttons.forEach((btn, index) => {
       let buttonFontSize = canvas.height * 0.035;
       buttonFontSize = Math.max(
@@ -114,7 +125,19 @@ export class TitleScreen {
         Math.min(buttonFontSize, canvas.height * this.buttonMaxRatio)
       );
 
-      // ✅ hover effect: golden color if hovered
+      const halfWidth = btn.width / 2;
+      const halfHeight = btn.height / 2;
+
+      // Draw box
+      ctx.fillStyle = index === this.hoveredButtonIndex ? "#444" : "#333";
+      ctx.fillRect(
+        btn.x - halfWidth,
+        btn.y - halfHeight,
+        btn.width,
+        btn.height
+      );
+
+      // Draw text
       ctx.fillStyle = index === this.hoveredButtonIndex ? "#ffd700" : "#fff";
       ctx.font = `${buttonFontSize}px Arial`;
       ctx.textAlign = "center";
@@ -122,38 +145,29 @@ export class TitleScreen {
       ctx.fillText(btn.text, btn.x, btn.y);
     });
 
-    // --- Version (lower-right) ---
+    // --- Version & Last Update ---
+    const versionFontSize = canvas.height * 0.02;
+    ctx.font = `${versionFontSize}px Arial`;
+    ctx.fillStyle = "#686868";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+
+    const margin = 20;
+    let bottomY = canvas.height - margin;
+
     if (this.core.version) {
-      const versionFontSize = canvas.height * 0.02;
-      ctx.font = `${versionFontSize}px Arial`;
-      ctx.fillStyle = "#686868";
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
-      ctx.fillText(
-        `v${this.core.version}`,
-        canvas.width - 20,
-        canvas.height - 30
-      );
+      ctx.fillText(`v${this.core.version}`, canvas.width - margin, bottomY);
+      bottomY -= versionFontSize * 1.5;
     }
 
-    // --- Last Update Version (lower-right) ---
     if (this.core.date_updated) {
       const dateObject = new Date(this.core.date_updated);
-      const options = {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      };
+      const options = { month: "short", day: "numeric", year: "numeric" };
       const formattedDate = dateObject.toLocaleDateString("en-US", options);
-      const date_updatedFontSize = canvas.height * 0.02;
-      ctx.font = `${date_updatedFontSize}px Arial`;
-      ctx.fillStyle = "#686868";
-      ctx.textAlign = "right";
-      ctx.textBaseline = "bottom";
       ctx.fillText(
         `Last Update ${formattedDate}`,
-        canvas.width - 20,
-        canvas.height - 10
+        canvas.width - margin,
+        bottomY
       );
     }
   }
@@ -162,14 +176,10 @@ export class TitleScreen {
     const rect = this.core.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const canvas = this.core.canvas;
 
     this.buttons.forEach((btn) => {
-      const fontSize = canvas.height * 0.035;
-      const textHeight = fontSize * 1.2;
-      const textWidth = this.core.ctx.measureText(btn.text).width;
-      const halfWidth = textWidth / 2;
-      const halfHeight = textHeight / 2;
+      const halfWidth = btn.width / 2;
+      const halfHeight = btn.height / 2;
 
       if (
         mouseX > btn.x - halfWidth &&
@@ -178,16 +188,11 @@ export class TitleScreen {
         mouseY < btn.y + halfHeight
       ) {
         console.log(`Button clicked: ${btn.text}`);
-        if (btn.id === "newgame") {
-          this.startNewGame();
-        }
+        if (btn.id === "newgame") this.startNewGame();
       }
     });
   }
 
-  /**
-   * 🔹 New Game loader using runtime gameState from GameCore
-   */
   async startNewGame() {
     this.unload();
 
@@ -199,11 +204,9 @@ export class TitleScreen {
 
     let started = false;
 
-    // 1️⃣ Load background if active
     if (gameState.currentBackground?.active) {
       const bgTarget = gameState.currentBackground.target;
       if (bgTarget) {
-        console.log(`🎬 Starting game with background: ${bgTarget}`);
         const bg = new Background(this.core, bgTarget);
         await bg.load();
         this.core.setActiveScene(bg);
@@ -211,19 +214,12 @@ export class TitleScreen {
       }
     }
 
-    // 2️⃣ Load scene if active (or if background is inactive)
     if (!started && gameState.currentScene?.active) {
       const sceneTarget = gameState.currentScene.target;
       const dialogueIndex = gameState.currentScene.dialogues || 0;
-
       if (sceneTarget) {
-        console.log(
-          `🎬 Starting game with scene: ${sceneTarget}, dialogue ${dialogueIndex}`
-        );
         const scene = new Scene(this.core, sceneTarget);
         await scene.load();
-
-        // continue from saved dialogue index
         scene.currentLine = dialogueIndex;
         this.core.setActiveScene(scene);
         started = true;
