@@ -337,7 +337,7 @@ export class Scene {
     if (pre) {
       c.energy = pre.energy;
       c.max_energy = pre.max_energy;
-      this.popupNotif?.show("Energy Reverted", "yellow");
+      this.popupNotif?.show("Stats Reverted", "yellow");
     }
 
     // Revert money delta
