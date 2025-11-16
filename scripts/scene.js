@@ -139,7 +139,7 @@ export class Scene {
 
     const obj = this.dialogues[this.currentLine];
 
-    // background-only line
+    // background-only lines: perform change and automatically advance
     if (obj?.background) {
       await this.changeBackground(obj.background, obj.transition);
       this.currentLine++;
@@ -154,7 +154,7 @@ export class Scene {
         }
         return;
       }
-      await this.processLine(); // process consecutive background lines
+      await this.processLine();
       return;
     }
 
@@ -166,7 +166,28 @@ export class Scene {
       return;
     }
 
-    // normal dialogue: apply stats if not yet applied
+    // stat-only line (no speaker, no text, no choices)
+    const isStatOnly = !obj?.speaker && !obj?.text && !obj?.choices;
+    if (isStatOnly) {
+      this.applyStats(obj, this.currentLine);
+      this.currentLine++;
+      if (this.currentLine >= this.dialogues.length) {
+        if (this.data.goto) {
+          await this.core.updateGameState("background", this.data.goto);
+          this.unload();
+          const { Background } = await import("./background.js");
+          const bg = new Background(this.core, this.data.goto);
+          await bg.load();
+          this.core.setActiveScene(bg);
+        }
+        return;
+      }
+      // recursively process next line in case it's also stat-only or goto
+      await this.processLine();
+      return;
+    }
+
+    // normal dialogue: apply stats if not applied
     if (!this.appliedStats.hasOwnProperty(this.currentLine)) {
       this.applyStats(obj, this.currentLine);
     }
