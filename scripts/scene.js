@@ -198,25 +198,32 @@ export class Scene {
   async prevDialogue() {
     if (this.isLoading) return;
 
+    // Prevent going back before the resume point
+    const minIndex = this.resumeIndex ?? 0;
+    if (this.currentLine <= minIndex) return;
+
+    // if choices are visible currently, just clear them (we'll reset if needed)
     if (this.choicesBox.choices.length > 0) {
       this.choicesBox.clear();
-      this.render(this.core.ctx);
-      return;
     }
 
-    // limit back navigation to resumeIndex
-    if (this.currentLine <= this.resumeIndex) return;
-
-    // revert stats
+    // Revert any stats applied on the current line (normal dialogue)
     this.revertStats(this.currentLine);
 
+    // Revert choice stats if previous line was a choices line
     const prevIndex = this.currentLine - 1;
-    if (this.appliedChoiceStats[prevIndex]) this.revertChoiceStats(prevIndex);
+    if (this.appliedChoiceStats[prevIndex]) {
+      this.revertChoiceStats(prevIndex);
+    }
 
+    // move back
     this.currentLine = prevIndex;
 
+    // If landed on a choices line, show choices again
     const prev = this.dialogues[this.currentLine];
-    if (prev?.choices) this.choicesBox.setChoices(prev.choices);
+    if (prev?.choices) {
+      this.choicesBox.setChoices(prev.choices);
+    }
 
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
     this.render(this.core.ctx);
