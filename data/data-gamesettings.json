@@ -1,6 +1,6 @@
 {
   "gameTitle": "Visual Novel",
-  "version": "0.2.5-a",
+  "version": "0.2.6-a",
   "date_updated": "11-16-2025",
   "gameState": {
     "currentCharacterId": "andrea",
@@ -9,7 +9,7 @@
     "currentBackground": { "target": "home", "active": false },
     "currentScene": {
       "target": "prologue",
-      "dialogues": 6,
+      "dialogues": 0,
       "active": true
     }
   }

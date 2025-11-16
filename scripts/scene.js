@@ -14,9 +14,6 @@ export class Scene {
     this.dialogues = [];
     this.currentLine = -1;
 
-    // Track applied stats:
-    // - appliedStats: normal dialogue-applied deltas keyed by dialogue index
-    // - appliedChoiceStats: deltas applied by making a choice (keyed by the choices line index)
     this.appliedStats = {};
     this.appliedChoiceStats = {};
 
@@ -39,6 +36,9 @@ export class Scene {
 
     this.isLoading = false;
     this.ignoreNextClick = false;
+
+    // Track the resume point to prevent going back past it
+    this.resumeIndex = 0;
   }
 
   async load() {
@@ -60,7 +60,7 @@ export class Scene {
 
     this.unload();
 
-    // click handler (advance)
+    // click handler
     this.clickHandler = (e) => {
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -91,19 +91,19 @@ export class Scene {
     };
     this.core.canvas.addEventListener("contextmenu", this.backHandler);
 
-    // Resume saved index if available, else start at 0
+    // Restore saved state
     const saved = this.core.gameState?.currentScene;
     if (saved?.target === this.sceneId && typeof saved.dialogues === "number") {
       this.currentLine = saved.dialogues;
-      // Note: gameState may or may not include saved applied stats.
-      // We only restore what was stored in gameState.appliedStats if present.
+      this.resumeIndex = saved.dialogues; // ← set resume point
       this.appliedStats = { ...(saved.appliedStats || {}) };
       this.appliedChoiceStats = { ...(saved.appliedChoiceStats || {}) };
     } else {
       this.currentLine = 0;
+      this.resumeIndex = 0;
     }
 
-    // Process background-only lines up to currentLine so visuals match resume point
+    // Process background-only lines up to currentLine
     for (let i = 0; i < this.currentLine; i++) {
       const dlg = this.dialogues[i];
       if (dlg?.background) {
@@ -111,17 +111,16 @@ export class Scene {
       }
     }
 
-    // If current line is a choices line, show choices; else apply nothing here
+    // Show choices if current line is a choice
     const current = this.dialogues[this.currentLine];
-    if (current?.choices) {
-      this.choicesBox.setChoices(current.choices);
-    } else {
-      // If current is a normal dialogue and its effects were not yet applied
-      // (i.e. not present in appliedStats), do not auto-apply here to avoid double-apply.
-      // We assume applyStats is run when advancing into a dialogue normally.
-    }
+    if (current?.choices) this.choicesBox.setChoices(current.choices);
 
-    // Update runtime game state to reflect where we are
+    // Re-apply stats for previously applied lines
+    for (const idx in this.appliedStats)
+      this.applyStats(this.dialogues[idx], idx, true);
+    for (const idx in this.appliedChoiceStats)
+      this.applyChoiceStatsDirect(idx, this.appliedChoiceStats[idx], true);
+
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
   }
 
@@ -134,19 +133,16 @@ export class Scene {
     this.choicesBox.clear();
   }
 
-  // process current line (do not increment) - handles background skip, choices, normal dialogue
   async processLine() {
     if (this.currentLine < 0 || this.currentLine >= this.dialogues.length)
       return;
 
     const obj = this.dialogues[this.currentLine];
 
-    // background-only lines: perform change and automatically advance to next line
+    // background-only line
     if (obj?.background) {
       await this.changeBackground(obj.background, obj.transition);
-      // advance to next real dialogue after background
       this.currentLine++;
-      // guard against overflow
       if (this.currentLine >= this.dialogues.length) {
         if (this.data.goto) {
           await this.core.updateGameState("background", this.data.goto);
@@ -158,12 +154,11 @@ export class Scene {
         }
         return;
       }
-      // recursively process next (in case there are consecutive background entries)
-      await this.processLine();
+      await this.processLine(); // process consecutive background lines
       return;
     }
 
-    // choices line: display choices and update state
+    // choices line
     if (obj?.choices) {
       this.choicesBox.setChoices(obj.choices);
       this.core.updateGameState("scene", this.sceneId, this.currentLine);
@@ -171,7 +166,7 @@ export class Scene {
       return;
     }
 
-    // normal dialogue: apply stats (if not already applied)
+    // normal dialogue: apply stats if not yet applied
     if (!this.appliedStats.hasOwnProperty(this.currentLine)) {
       this.applyStats(obj, this.currentLine);
     }
@@ -182,11 +177,8 @@ export class Scene {
 
   async nextDialogue() {
     if (this.isLoading) return;
-
-    // if choices are visible, don't auto-advance (user must select a choice)
     if (this.choicesBox.choices.length > 0) return;
 
-    // increment and process
     this.currentLine++;
     if (this.currentLine >= this.dialogues.length) {
       if (this.data.goto) {
@@ -206,44 +198,69 @@ export class Scene {
   async prevDialogue() {
     if (this.isLoading) return;
 
-    // if choices are visible currently, just clear them (stay on same line)
     if (this.choicesBox.choices.length > 0) {
       this.choicesBox.clear();
       this.render(this.core.ctx);
       return;
     }
 
-    if (this.currentLine <= 0) return;
+    // limit back navigation to resumeIndex
+    if (this.currentLine <= this.resumeIndex) return;
 
-    // Revert any stats that were applied on the current line (normal dialogue)
+    // revert stats
     this.revertStats(this.currentLine);
 
-    // If previous line was a choices line and the player previously selected a choice
-    // we must revert the choice effects stored in appliedChoiceStats[prevIndex]
     const prevIndex = this.currentLine - 1;
-    if (this.appliedChoiceStats[prevIndex]) {
-      this.revertChoiceStats(prevIndex);
-    }
+    if (this.appliedChoiceStats[prevIndex]) this.revertChoiceStats(prevIndex);
 
-    // move back
     this.currentLine = prevIndex;
 
-    // If landed on a choices line, show choices
     const prev = this.dialogues[this.currentLine];
-    if (prev?.choices) {
-      this.choicesBox.setChoices(prev.choices);
-    } else {
-      // if it's a normal dialogue line and its stats weren't applied yet (rare), ensure display
-      if (!this.appliedStats[this.currentLine]) {
-        // do not auto-apply here; let user advance to apply normally
-      }
-    }
+    if (prev?.choices) this.choicesBox.setChoices(prev.choices);
 
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
     this.render(this.core.ctx);
   }
 
-  applyStats(obj, index) {
+  handleChoice(choice) {
+    const idx = this.currentLine;
+    const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
+
+    if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
+      this.statsManager.modifyMaxEnergy(choice.max_energy);
+      deltas.max_energy = choice.max_energy;
+    }
+    if (choice.money !== undefined) {
+      this.statsManager.applyStats({ money: choice.money });
+      if (typeof choice.money === "number") deltas.money = choice.money;
+    }
+    if (choice.energy !== undefined) {
+      const c = this.core.currentCharacter;
+      deltas.prevEnergy = c?.energy ?? null;
+      this.statsManager.applyStats({ energy: choice.energy });
+      if (typeof choice.energy === "number") deltas.energy = choice.energy;
+      else if (choice.energy === "reset") deltas.energy = "reset";
+    }
+
+    this.appliedChoiceStats[idx] = deltas;
+
+    if (choice.goto_scene) {
+      this.unload();
+      import("./scene.js").then(async (mod) => {
+        const newScene = new mod.Scene(this.core, choice.goto_scene);
+        await newScene.load();
+        this.core.setActiveScene(newScene);
+      });
+      return;
+    }
+
+    this.choicesBox.clear();
+    this.currentLine = idx + 1;
+    this.processLine();
+  }
+
+  // -------------------- existing methods --------------------
+  applyStats(obj, index, skipStore = false) {
     const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
     if (typeof obj.max_energy === "number" && obj.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(obj.max_energy);
@@ -261,7 +278,7 @@ export class Scene {
       else if (obj.energy === "reset") deltas.energy = "reset";
     }
 
-    this.appliedStats[index] = deltas;
+    if (!skipStore) this.appliedStats[index] = deltas;
   }
 
   revertStats(index) {
@@ -290,7 +307,6 @@ export class Scene {
     delete this.appliedStats[index];
   }
 
-  // choice-specific apply/revert
   revertChoiceStats(choiceIndex) {
     const deltas = this.appliedChoiceStats[choiceIndex];
     if (!deltas) return;
@@ -315,50 +331,6 @@ export class Scene {
     if (Object.keys(reverse).length > 0) this.statsManager.applyStats(reverse);
 
     delete this.appliedChoiceStats[choiceIndex];
-  }
-
-  handleChoice(choice) {
-    // apply choice stats and store under the choices line index
-    const idx = this.currentLine; // choices line index
-    const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
-
-    if (typeof choice.max_energy === "number" && choice.max_energy !== 0) {
-      this.statsManager.modifyMaxEnergy(choice.max_energy);
-      deltas.max_energy = choice.max_energy;
-    }
-
-    if (choice.money !== undefined) {
-      this.statsManager.applyStats({ money: choice.money });
-      if (typeof choice.money === "number") deltas.money = choice.money;
-    }
-
-    if (choice.energy !== undefined) {
-      const c = this.core.currentCharacter;
-      deltas.prevEnergy = c?.energy ?? null;
-      this.statsManager.applyStats({ energy: choice.energy });
-      if (typeof choice.energy === "number") deltas.energy = choice.energy;
-      else if (choice.energy === "reset") deltas.energy = "reset";
-    }
-
-    // store choice deltas so we can revert if player goes back
-    this.appliedChoiceStats[idx] = deltas;
-
-    // goto_scene choices immediately switch scene
-    if (choice.goto_scene) {
-      this.unload();
-      import("./scene.js").then(async (mod) => {
-        const newScene = new mod.Scene(this.core, choice.goto_scene);
-        await newScene.load();
-        this.core.setActiveScene(newScene);
-      });
-      return;
-    }
-
-    // clear choices then advance to next real dialogue and process it
-    this.choicesBox.clear();
-    this.currentLine = idx + 1;
-    // process the new current line (will apply normal dialogue stats if any)
-    this.processLine();
   }
 
   async changeBackground(bgId, transition) {

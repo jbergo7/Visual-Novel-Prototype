@@ -245,6 +245,7 @@ export class TitleScreen {
     const gs = this.core.gameState;
 
     if (gs.currentBackground?.active) {
+      const { Background } = await import("./background.js");
       const bg = new Background(this.core, gs.currentBackground.target);
       await bg.load();
       this.core.setActiveScene(bg);
@@ -252,9 +253,18 @@ export class TitleScreen {
     }
 
     if (gs.currentScene?.active) {
+      const { Scene } = await import("./scene.js");
       const scene = new Scene(this.core, gs.currentScene.target);
       await scene.load();
-      scene.currentLine = gs.currentScene.dialogues || 0;
+
+      // Set current line and resume index so player cannot go back past this point
+      const savedIndex =
+        typeof gs.currentScene.dialogues === "number"
+          ? gs.currentScene.dialogues
+          : 0;
+      scene.currentLine = savedIndex;
+      scene.resumeIndex = savedIndex;
+
       this.core.setActiveScene(scene);
       return;
     }
