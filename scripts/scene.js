@@ -139,15 +139,21 @@ export class Scene {
 
     const obj = this.dialogues[this.currentLine];
 
-    // BACKGROUND ONLY
+    // ----------------- BACKGROUND ONLY -----------------
     if (obj?.background) {
       await this.changeBackground(obj.background, obj.transition);
       this.currentLine++;
-      if (this.currentLine < this.dialogues.length) await this.processLine();
+      // auto-advance to next line if available
+      if (this.currentLine < this.dialogues.length) {
+        await this.processLine();
+      } else if (this.data.goto) {
+        // if end of scene, go to next background/scene
+        await this.gotoNext();
+      }
       return;
     }
 
-    // CHOICES
+    // ----------------- CHOICES -----------------
     if (obj?.choices) {
       // Store pre-choice state if not already stored
       if (!this.preChoiceState[this.currentLine]) {
@@ -163,20 +169,38 @@ export class Scene {
       return;
     }
 
-    // STAT-ONLY LINES
+    // ----------------- STAT-ONLY LINES -----------------
     const isStatOnly = !obj?.speaker && !obj?.text && !obj?.choices;
     if (isStatOnly) {
-      this.applyStats(obj, this.currentLine);
+      if (!this.appliedStats.hasOwnProperty(this.currentLine)) {
+        this.applyStats(obj, this.currentLine);
+      }
       this.currentLine++;
-      if (this.currentLine < this.dialogues.length) await this.processLine();
+      if (this.currentLine < this.dialogues.length) {
+        await this.processLine();
+      } else if (this.data.goto) {
+        await this.gotoNext();
+      }
       return;
     }
 
-    // NORMAL DIALOGUE
-    if (!this.appliedStats.hasOwnProperty(this.currentLine))
+    // ----------------- NORMAL DIALOGUE -----------------
+    if (!this.appliedStats.hasOwnProperty(this.currentLine)) {
       this.applyStats(obj, this.currentLine);
+    }
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
     this.render(this.core.ctx);
+  }
+
+  // ----------------- HELPER METHOD -----------------
+  async gotoNext() {
+    if (!this.data.goto) return;
+    await this.core.updateGameState("background", this.data.goto);
+    this.unload();
+    const { Background } = await import("./background.js");
+    const bg = new Background(this.core, this.data.goto);
+    await bg.load();
+    this.core.setActiveScene(bg);
   }
 
   async nextDialogue() {
