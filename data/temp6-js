@@ -1,11 +1,11 @@
-// components/save_load_popup.js
 export default class SaveLoadPopup {
   constructor(core) {
     this.core = core;
     this.visible = false;
 
-    this.hoverButton = { slot: -1, type: null };
+    this.hoverIndex = -1;
     this.closeHover = false;
+    this.hoverButton = { slot: -1, label: null }; // Track hovered button
 
     // 10 save slots placeholder
     this.slots = Array(10)
@@ -13,8 +13,7 @@ export default class SaveLoadPopup {
       .map((_, i) => ({
         id: i,
         screenshot: null,
-        header: i === 0 ? "Autosave" : "Slot " + i,
-        date: "2025-11-17", // sample date text
+        date: "Empty Slot " + i,
       }));
 
     this._moveHandler = (e) => this.onMouseMove(e);
@@ -37,6 +36,26 @@ export default class SaveLoadPopup {
   }
 
   // -----------------------------
+  // BUTTON DRAW HELPER
+  // -----------------------------
+  drawButton(ctx, slotIndex, label, x, y, w, h, mouseX, mouseY) {
+    const isHover =
+      mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+    ctx.fillStyle = isHover
+      ? "rgba(255,255,255,0.35)"
+      : "rgba(255,255,255,0.2)";
+    ctx.fillRect(x, y, w, h);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = `${h * 0.6}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + w / 2, y + h / 2);
+
+    return isHover;
+  }
+
+  // -----------------------------
   // MOUSE MOVE
   // -----------------------------
   onMouseMove(e) {
@@ -47,8 +66,9 @@ export default class SaveLoadPopup {
     const y = e.clientY - rect.top;
     const canvas = this.core.canvas;
 
-    this.hoverButton = { slot: -1, type: null };
+    this.hoverIndex = -1;
     this.closeHover = false;
+    this.hoverButton = { slot: -1, label: null };
 
     // CLOSE BUTTON
     const closeSize = canvas.width * 0.03;
@@ -68,7 +88,7 @@ export default class SaveLoadPopup {
     const cols = 5;
     const rows = 2;
     const cardW = canvas.width * 0.16;
-    const cardH = canvas.height * 0.33; // increased height
+    const cardH = canvas.height * 0.28;
     const gapX = canvas.width * 0.015;
     const gapY = canvas.height * 0.03;
     const startX = canvas.width * 0.05;
@@ -79,6 +99,10 @@ export default class SaveLoadPopup {
       const row = Math.floor(i / cols);
       const bx = startX + col * (cardW + gapX);
       const by = startY + row * (cardH + gapY);
+
+      if (x >= bx && x <= bx + cardW && y >= by && y <= by + cardH) {
+        this.hoverIndex = i;
+      }
 
       // BUTTONS
       const btnH = cardH * 0.12;
@@ -92,8 +116,20 @@ export default class SaveLoadPopup {
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + 12 + idx * (btnW + btnSpacing);
-        if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
-          this.hoverButton = { slot: i, type: label };
+        if (
+          this.drawButton(
+            this.core.canvas.getContext("2d"),
+            i,
+            label,
+            btnX,
+            btnY,
+            btnW,
+            btnH,
+            x,
+            y
+          )
+        ) {
+          this.hoverButton = { slot: i, label };
         }
       });
     });
@@ -104,33 +140,16 @@ export default class SaveLoadPopup {
   // -----------------------------
   onClick(e) {
     if (!this.visible) return;
-
     if (this.closeHover) {
       this.close();
       return;
     }
 
-    if (this.hoverButton.slot !== -1 && this.hoverButton.type) {
+    if (this.hoverButton.slot !== -1 && this.hoverButton.label) {
       console.log(
-        `Clicked ${this.hoverButton.type} on card ${this.hoverButton.slot}`
+        `Clicked ${this.hoverButton.label} on slot ${this.hoverButton.slot}`
       );
     }
-  }
-
-  // -----------------------------
-  // BUTTON DRAW FUNCTION
-  // -----------------------------
-  drawButton(ctx, x, y, w, h, label, isHover) {
-    ctx.fillStyle = isHover
-      ? "rgba(255,255,255,0.35)"
-      : "rgba(255,255,255,0.2)";
-    ctx.fillRect(x, y, w, h);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = `${h * 0.6}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, x + w / 2, y + h / 2);
   }
 
   // -----------------------------
@@ -145,13 +164,13 @@ export default class SaveLoadPopup {
     ctx.fillStyle = "rgba(0,0,0,0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // TITLE
+    // TITLE (top-left)
     ctx.fillStyle = "#fff";
     ctx.font = `${canvas.height * 0.045}px Arial`;
     ctx.textAlign = "left";
     ctx.fillText("Save / Load", canvas.width * 0.05, canvas.height * 0.07);
 
-    // CLOSE BUTTON
+    // CLOSE BUTTON (top-right)
     const closeSize = canvas.width * 0.03;
     const closeX = canvas.width * 0.88;
     const closeY = canvas.height * 0.05;
@@ -167,7 +186,7 @@ export default class SaveLoadPopup {
     const cols = 5;
     const rows = 2;
     const cardW = canvas.width * 0.16;
-    const cardH = canvas.height * 0.33; // taller cards
+    const cardH = canvas.height * 0.28;
     const gapX = canvas.width * 0.015;
     const gapY = canvas.height * 0.03;
     const startX = canvas.width * 0.05;
@@ -180,18 +199,22 @@ export default class SaveLoadPopup {
       const by = startY + row * (cardH + gapY);
 
       // CARD BG
-      ctx.fillStyle = "rgba(255,255,255,0.08)";
+      ctx.fillStyle =
+        this.hoverIndex === i
+          ? "rgba(255,255,255,0.15)"
+          : "rgba(255,255,255,0.08)";
       ctx.fillRect(bx, by, cardW, cardH);
 
       // CARD HEADER
+      const headerText = i === 0 ? "Autosave" : "Slot " + i;
       const headerH = cardH * 0.12;
       ctx.fillStyle = "#fff";
       ctx.font = `${headerH * 0.8}px Arial`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(slot.header, bx + cardW / 2, by + 8);
+      ctx.fillText(headerText, bx + cardW / 2, by + 8);
 
-      // THUMBNAIL
+      // THUMBNAIL BOX
       const thumbH = cardH * 0.55;
       const thumbY = by + headerH + 8;
       ctx.fillStyle = "rgba(255,255,255,0.2)";
@@ -208,6 +231,7 @@ export default class SaveLoadPopup {
       const btnH = cardH * 0.12;
       const btnBottomPadding = cardH * 0.03;
       const btnY = by + cardH - btnH - btnBottomPadding;
+
       const btnCount = 3;
       const btnSpacing = (cardW - 24) * 0.03;
       const totalBtnWidth = cardW - 24 - btnSpacing * (btnCount - 1);
@@ -215,20 +239,8 @@ export default class SaveLoadPopup {
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + 12 + idx * (btnW + btnSpacing);
-        const isHover =
-          this.hoverButton.slot === i && this.hoverButton.type === label;
-        this.drawButton(ctx, btnX, btnY, btnW, btnH, label, isHover);
+        this.drawButton(ctx, i, label, btnX, btnY, btnW, btnH, -999, -999); // render without hover
       });
-
-      // Middle Text (dynamic vertical spacing)
-      const spaceTop = thumbY + thumbH - 12;
-      const spaceBottom = btnY;
-      const middleY = spaceTop + (spaceBottom - spaceTop) / 2;
-      ctx.fillStyle = "#fff";
-      ctx.font = `${btnH * 0.6}px Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(slot.date, bx + cardW / 2, middleY);
     });
   }
 }
