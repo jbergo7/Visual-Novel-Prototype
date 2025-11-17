@@ -87,13 +87,16 @@ export default class MenuPopup {
         break;
 
       case "load":
-        this.core.saveLoadPopup.open();
+        this.close();
+        this.core.saveLoadPopup.open("load");
         console.log("Load Game clicked");
         break;
 
       case "save":
-        this.core.saveLoadPopup.open();
+        this.close();
+        this.core.saveLoadPopup.open("save");
         console.log("Save Game clicked");
+
         break;
 
       case "settings":

@@ -187,8 +187,9 @@ export class TitleScreen {
         my > btn.y - hh &&
         my < btn.y + hh
       ) {
-        if (btn.id === "newgame") this.startNewGame();
         if (btn.id === "continue") this.continueGame(); // ★ Added
+        if (btn.id === "newgame") this.startNewGame();
+        if (btn.id === "loadgame") this.core.saveLoadPopup.open("load");
       }
     });
   }

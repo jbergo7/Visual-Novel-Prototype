@@ -3,7 +3,6 @@ export default class SaveLoadPopup {
   constructor(core) {
     this.core = core;
     this.visible = false;
-    this.mode = "save";
 
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
@@ -25,9 +24,8 @@ export default class SaveLoadPopup {
     this.core.canvas.addEventListener("click", this._clickHandler);
   }
 
-  open(mode = "save") {
+  open() {
     this.visible = true;
-    this.mode = mode; // "save" or "load"
   }
   close() {
     this.visible = false;
@@ -123,19 +121,12 @@ export default class SaveLoadPopup {
   // BUTTON DRAW FUNCTION
   // -----------------------------
   drawButton(ctx, x, y, w, h, label, isHover) {
-    let disabled = false;
-    if (this.mode === "save" && label === "Load") disabled = true;
-    if (this.mode === "load" && label === "Save") disabled = true;
-
-    ctx.fillStyle = disabled
-      ? "rgba(255,255,255,0.08)"
-      : isHover
+    ctx.fillStyle = isHover
       ? "rgba(255,255,255,0.35)"
       : "rgba(255,255,255,0.2)";
-
     ctx.fillRect(x, y, w, h);
 
-    ctx.fillStyle = disabled ? "rgba(255,255,255,0.5)" : "#fff";
+    ctx.fillStyle = "#fff";
     ctx.font = `${h * 0.6}px Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -158,8 +149,7 @@ export default class SaveLoadPopup {
     ctx.fillStyle = "#fff";
     ctx.font = `${canvas.height * 0.045}px Arial`;
     ctx.textAlign = "left";
-    const titleText = this.mode === "save" ? "Save Game" : "Load Game";
-    ctx.fillText(titleText, canvas.width * 0.05, canvas.height * 0.07);
+    ctx.fillText("Save / Load", canvas.width * 0.05, canvas.height * 0.07);
 
     // CLOSE BUTTON
     const closeSize = canvas.width * 0.03;
