@@ -98,6 +98,9 @@ export class TitleScreen {
   }
 
   handleMouseMove(e) {
+    // ✅ Check if SaveLoadPopup is open
+    if (this.core.saveLoadPopup?.visible) return;
+
     const rect = this.core.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -173,6 +176,9 @@ export class TitleScreen {
   }
 
   handleClick(e) {
+    // ✅ Check if SaveLoadPopup is open
+    if (this.core.saveLoadPopup?.visible) return;
+
     const rect = this.core.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;

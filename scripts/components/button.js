@@ -54,6 +54,9 @@ export class Button {
     this.clickHandler = (e) => {
       if (!this.active) return;
 
+      // ✅ Check if SaveLoadPopup is open
+      if (this.core.saveLoadPopup?.visible) return;
+
       const rect = this.core.canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
