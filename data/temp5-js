@@ -13,7 +13,7 @@ export default class SaveLoadPopup {
       .map((_, i) => ({
         id: i,
         screenshot: null,
-        date: "Empty Slot",
+        date: "Empty Slot " + i,
       }));
 
     this._moveHandler = (e) => this.onMouseMove(e);

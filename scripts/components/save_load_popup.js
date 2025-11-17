@@ -13,7 +13,7 @@ export default class SaveLoadPopup {
       .map((_, i) => ({
         id: i,
         screenshot: null,
-        date: "Empty Slot",
+        date: "Empty Slot " + i,
       }));
 
     this._moveHandler = (e) => this.onMouseMove(e);
@@ -68,7 +68,7 @@ export default class SaveLoadPopup {
     const rows = 2;
     const cardW = canvas.width * 0.16;
     const cardH = canvas.height * 0.28;
-    const gapX = canvas.width * 0.025;
+    const gapX = canvas.width * 0.1;
     const gapY = canvas.height * 0.04;
     const startX = canvas.width * 0.05;
     const startY = canvas.height * 0.17;
@@ -156,33 +156,42 @@ export default class SaveLoadPopup {
           : "rgba(255,255,255,0.08)";
       ctx.fillRect(bx, by, cardW, cardH);
 
-      // THUMBNAIL BOX (top of card)
-      const thumbH = cardH * 0.55;
-      ctx.fillStyle = "rgba(255,255,255,0.2)";
-      ctx.fillRect(bx + 10, by + 10, cardW - 20, thumbH - 10);
+      // CARD HEADER (top)
+      const headerText = i === 0 ? "Autosave" : "Slot " + i;
+      const headerH = cardH * 0.1; // proportional header height
+      ctx.fillStyle = "#fff";
+      ctx.font = `${headerH * 0.8}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(headerText, bx + cardW / 2, by + 5);
 
-      // BUTTONS (anchored at bottom of card)
+      // THUMBNAIL BOX (below header)
+      const thumbH = cardH * 0.55;
+      const thumbY = by + headerH + 5;
+      ctx.fillStyle = "rgba(255,255,255,0.2)";
+      ctx.fillRect(bx + 10, thumbY, cardW - 20, thumbH - 10);
+
+      // Placeholder text "Empty" in thumbnail
+      ctx.fillStyle = "#fff";
+      ctx.font = `${thumbH * 0.15}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Empty", bx + cardW / 2, thumbY + (thumbH - 10) / 2);
+
+      // BUTTONS (anchored at bottom)
       const btnH = cardH * 0.12;
-      const btnBottomPadding = cardH * 0.035; // proportional to card height
+      const btnBottomPadding = cardH * 0.035;
       const btnY = by + cardH - btnH - btnBottomPadding;
 
-      // DATE TEXT ("Empty Slot") -> centered strictly between thumbnail bottom and button top
-      const spaceTop = by + 10 + thumbH; // bottom of thumbnail
+      // Middle space left blank (for future details)
+      const spaceTop = thumbY + thumbH - 10; // bottom of thumbnail
       const spaceBottom = btnY; // top of buttons
-      let dateY = spaceTop + (spaceBottom - spaceTop) / 2;
-
-      // CLAMP dateY between thumbnail bottom and button top
-      dateY = Math.max(spaceTop + 2, Math.min(dateY, spaceBottom - 2));
-
-      ctx.fillStyle = "#fff";
-      ctx.font = `${btnH * 0.8}px Arial`; // scaled font
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle"; // vertical center
-      ctx.fillText(slot.date, bx + cardW / 2, dateY);
+      const middleY = spaceTop + (spaceBottom - spaceTop) / 2; // center
+      // No text for now, just leave blank
 
       // BUTTONS (proportional spacing)
       const btnCount = 3;
-      const btnSpacing = (cardW - 20) * 0.03; // proportional spacing
+      const btnSpacing = (cardW - 20) * 0.03;
       const totalBtnWidth = cardW - 20 - btnSpacing * (btnCount - 1);
       const btnW = totalBtnWidth / btnCount;
 
