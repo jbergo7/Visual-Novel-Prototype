@@ -189,6 +189,11 @@ export default class SaveLoadPopup {
     // Restore game state + characters
     this.core.gameState = structuredClone(slot.gameState);
     this.core.characters = structuredClone(slot.characters);
+    this.core.currentCharacter =
+      this.core.characters.find((ch) => ch.default === true) ||
+      this.core.characters[0];
+
+    console.log(this.core.characters);
 
     // -----------------------------------------
     // 🔥 HARD-CODED RESUME LOGIC
@@ -221,8 +226,8 @@ export default class SaveLoadPopup {
       scene.currentLine = savedIndex;
       scene.resumeIndex = savedIndex;
       // Close popup first
-      this.close();
       this.core.setActiveScene(scene);
+      this.close();
       return;
     }
 
