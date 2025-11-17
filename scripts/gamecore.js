@@ -1,8 +1,9 @@
+import SaveLoadPopup from "./components/save_load_popup.js";
+
 export class GameCore {
   constructor(canvasId) {
     this.canvas = document.getElementById(canvasId);
     this.ctx = this.canvas.getContext("2d");
-
     this.baseWidth = 1920;
     this.baseHeight = 1080;
     this.scaleRatio = 1;
@@ -28,6 +29,8 @@ export class GameCore {
 
     // Mutable save data
     this.gameState = null;
+
+    this.saveLoadPopup = new SaveLoadPopup(this);
 
     window.addEventListener("resize", () => this.resizeCanvas());
   }
@@ -186,6 +189,7 @@ export class GameCore {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     if (this.activeScene?.render) this.activeScene.render(ctx);
+    this.saveLoadPopup.render(ctx);
   }
 
   setActiveScene(scene) {
