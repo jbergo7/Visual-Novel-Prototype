@@ -193,8 +193,6 @@ export default class SaveLoadPopup {
       this.core.characters.find((ch) => ch.default === true) ||
       this.core.characters[0];
 
-    console.log(this.core.characters);
-
     // -----------------------------------------
     // 🔥 HARD-CODED RESUME LOGIC
     // -----------------------------------------
