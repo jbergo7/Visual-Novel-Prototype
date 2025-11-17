@@ -22,6 +22,7 @@ export class GameCore {
 
     // Global click handler
     this.canvas.addEventListener("click", (e) => {
+      // if (this.saveLoadPopup?.visible) return;
       if (this.activeScene?.handleGlobalClick) {
         this.activeScene.handleGlobalClick(e);
       }

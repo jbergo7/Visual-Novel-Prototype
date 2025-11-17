@@ -40,6 +40,8 @@ export class DialogueChoices {
 
   handleMouseMove(e) {
     if (this.choices.length === 0) return;
+    if (this.core.menuPopup.visible) return;
+    if (this.core.saveLoadPopup?.visible) return;
 
     const rect = this.core.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -74,6 +76,8 @@ export class DialogueChoices {
 
   handleClick(e) {
     if (this.choices.length === 0) return;
+    if (this.core.menuPopup.visible) return;
+    if (this.core.saveLoadPopup?.visible) return;
 
     const rect = this.core.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
