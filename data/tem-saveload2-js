@@ -1,11 +1,12 @@
+// components/save_load_popup.js
 export default class SaveLoadPopup {
   constructor(core) {
     this.core = core;
     this.visible = false;
+    this.mode = "save"; // "save" or "load"
 
-    this.hoverIndex = -1;
+    this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
-    this.hoverButton = { slot: -1, label: null }; // Track hovered button
 
     // 10 save slots placeholder
     this.slots = Array(10)
@@ -13,7 +14,8 @@ export default class SaveLoadPopup {
       .map((_, i) => ({
         id: i,
         screenshot: null,
-        date: "Empty Slot " + i,
+        header: i === 0 ? "Autosave" : "Slot " + i,
+        date: "",
       }));
 
     this._moveHandler = (e) => this.onMouseMove(e);
@@ -21,11 +23,19 @@ export default class SaveLoadPopup {
 
     this.core.canvas.addEventListener("mousemove", this._moveHandler);
     this.core.canvas.addEventListener("click", this._clickHandler);
+
+    this.loadAllSlots();
   }
 
-  open() {
+  // -----------------------------
+  // OPEN/CLOSE
+  // -----------------------------
+  open(mode = "save") {
     this.visible = true;
+    this.mode = mode; // "save" or "load"
+    this.loadAllSlots(); // Refresh slot data on open
   }
+
   close() {
     this.visible = false;
   }
@@ -36,23 +46,20 @@ export default class SaveLoadPopup {
   }
 
   // -----------------------------
-  // BUTTON DRAW HELPER
+  // LOAD SLOT DATA FROM LOCALSTORAGE
   // -----------------------------
-  drawButton(ctx, slotIndex, label, x, y, w, h, mouseX, mouseY) {
-    const isHover =
-      mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
-    ctx.fillStyle = isHover
-      ? "rgba(255,255,255,0.35)"
-      : "rgba(255,255,255,0.2)";
-    ctx.fillRect(x, y, w, h);
-
-    ctx.fillStyle = "#fff";
-    ctx.font = `${h * 0.6}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, x + w / 2, y + h / 2);
-
-    return isHover;
+  loadAllSlots() {
+    this.slots.forEach((slot, i) => {
+      const saved = localStorage.getItem("vn_save_slot_" + i);
+      if (saved) {
+        const data = JSON.parse(saved);
+        slot.date = data.timestamp || "";
+        slot.screenshot = data.screenshot || null;
+      } else {
+        slot.date = "";
+        slot.screenshot = null;
+      }
+    });
   }
 
   // -----------------------------
@@ -66,9 +73,8 @@ export default class SaveLoadPopup {
     const y = e.clientY - rect.top;
     const canvas = this.core.canvas;
 
-    this.hoverIndex = -1;
+    this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
-    this.hoverButton = { slot: -1, label: null };
 
     // CLOSE BUTTON
     const closeSize = canvas.width * 0.03;
@@ -88,7 +94,7 @@ export default class SaveLoadPopup {
     const cols = 5;
     const rows = 2;
     const cardW = canvas.width * 0.16;
-    const cardH = canvas.height * 0.28;
+    const cardH = canvas.height * 0.33;
     const gapX = canvas.width * 0.015;
     const gapY = canvas.height * 0.03;
     const startX = canvas.width * 0.05;
@@ -100,15 +106,10 @@ export default class SaveLoadPopup {
       const bx = startX + col * (cardW + gapX);
       const by = startY + row * (cardH + gapY);
 
-      if (x >= bx && x <= bx + cardW && y >= by && y <= by + cardH) {
-        this.hoverIndex = i;
-      }
-
       // BUTTONS
       const btnH = cardH * 0.12;
       const btnBottomPadding = cardH * 0.03;
       const btnY = by + cardH - btnH - btnBottomPadding;
-
       const btnCount = 3;
       const btnSpacing = (cardW - 24) * 0.03;
       const totalBtnWidth = cardW - 24 - btnSpacing * (btnCount - 1);
@@ -116,20 +117,8 @@ export default class SaveLoadPopup {
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + 12 + idx * (btnW + btnSpacing);
-        if (
-          this.drawButton(
-            this.core.canvas.getContext("2d"),
-            i,
-            label,
-            btnX,
-            btnY,
-            btnW,
-            btnH,
-            x,
-            y
-          )
-        ) {
-          this.hoverButton = { slot: i, label };
+        if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
+          this.hoverButton = { slot: i, type: label };
         }
       });
     });
@@ -140,16 +129,99 @@ export default class SaveLoadPopup {
   // -----------------------------
   onClick(e) {
     if (!this.visible) return;
+
     if (this.closeHover) {
       this.close();
       return;
     }
 
-    if (this.hoverButton.slot !== -1 && this.hoverButton.label) {
-      console.log(
-        `Clicked ${this.hoverButton.label} on slot ${this.hoverButton.slot}`
-      );
+    const { slot, type } = this.hoverButton;
+    if (slot !== -1 && type) {
+      if (type === "Save") this.saveSlot(slot);
+      else if (type === "Load") this.loadSlot(slot);
+      else if (type === "Delete") this.deleteSlot(slot);
     }
+  }
+
+  // -----------------------------
+  // SAVE / LOAD / DELETE SLOT
+  // -----------------------------
+  saveSlot(index) {
+    const slotKey = "vn_save_slot_" + index;
+
+    // Screenshot of current canvas
+    const screenshot = this.core.canvas.toDataURL("image/png");
+
+    // Timestamp
+    const now = new Date();
+    const timestamp = now.toLocaleString();
+
+    // Save game state + characters
+    const saveData = {
+      timestamp,
+      screenshot,
+      gameState: structuredClone(this.core.gameState),
+      characters: structuredClone(this.core.characters),
+    };
+
+    localStorage.setItem(slotKey, JSON.stringify(saveData));
+
+    // Update slot immediately
+    this.slots[index].date = timestamp;
+    this.slots[index].screenshot = screenshot;
+
+    console.log(`Saved slot ${index}`, saveData);
+  }
+
+  loadSlot(index) {
+    const slotKey = "vn_save_slot_" + index;
+    const saved = localStorage.getItem(slotKey);
+
+    if (!saved) {
+      console.warn("Slot empty!");
+      return;
+    }
+
+    const data = JSON.parse(saved);
+
+    // Restore game state
+    this.core.gameState = structuredClone(data.gameState);
+    this.core.characters = structuredClone(data.characters);
+
+    console.log(`Loaded slot ${index}`, data);
+
+    this.close();
+  }
+
+  deleteSlot(index) {
+    const slotKey = "vn_save_slot_" + index;
+    localStorage.removeItem(slotKey);
+    this.slots[index].date = "";
+    this.slots[index].screenshot = null;
+    console.log(`Deleted slot ${index}`);
+  }
+
+  // -----------------------------
+  // DRAW BUTTON
+  // -----------------------------
+  drawButton(ctx, x, y, w, h, label, isHover) {
+    let disabled = false;
+    if (this.mode === "save" && label === "Load") disabled = true;
+    if (this.mode === "load" && label === "Save") disabled = true;
+
+    ctx.fillStyle = disabled
+      ? "rgba(255,255,255,0.08)"
+      : isHover
+      ? "rgba(255,255,255,0.35)"
+      : "rgba(255,255,255,0.2)";
+
+    ctx.fillRect(x, y, w, h);
+
+    ctx.fillStyle = disabled ? "rgba(255,255,255,0.5)" : "#fff";
+    ctx.font = `${h * 0.6}px Arial`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + w / 2, y + h / 2);
   }
 
   // -----------------------------
@@ -164,13 +236,14 @@ export default class SaveLoadPopup {
     ctx.fillStyle = "rgba(0,0,0,0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // TITLE (top-left)
+    // TITLE
     ctx.fillStyle = "#fff";
     ctx.font = `${canvas.height * 0.045}px Arial`;
     ctx.textAlign = "left";
-    ctx.fillText("Save / Load", canvas.width * 0.05, canvas.height * 0.07);
+    const titleText = this.mode === "save" ? "Save Game" : "Load Game";
+    ctx.fillText(titleText, canvas.width * 0.05, canvas.height * 0.07);
 
-    // CLOSE BUTTON (top-right)
+    // CLOSE BUTTON
     const closeSize = canvas.width * 0.03;
     const closeX = canvas.width * 0.88;
     const closeY = canvas.height * 0.05;
@@ -186,7 +259,7 @@ export default class SaveLoadPopup {
     const cols = 5;
     const rows = 2;
     const cardW = canvas.width * 0.16;
-    const cardH = canvas.height * 0.28;
+    const cardH = canvas.height * 0.33;
     const gapX = canvas.width * 0.015;
     const gapY = canvas.height * 0.03;
     const startX = canvas.width * 0.05;
@@ -199,39 +272,40 @@ export default class SaveLoadPopup {
       const by = startY + row * (cardH + gapY);
 
       // CARD BG
-      ctx.fillStyle =
-        this.hoverIndex === i
-          ? "rgba(255,255,255,0.15)"
-          : "rgba(255,255,255,0.08)";
+      ctx.fillStyle = "rgba(255,255,255,0.08)";
       ctx.fillRect(bx, by, cardW, cardH);
 
-      // CARD HEADER
-      const headerText = i === 0 ? "Autosave" : "Slot " + i;
+      // HEADER
       const headerH = cardH * 0.12;
       ctx.fillStyle = "#fff";
       ctx.font = `${headerH * 0.8}px Arial`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(headerText, bx + cardW / 2, by + 8);
+      ctx.fillText(slot.header, bx + cardW / 2, by + 8);
 
-      // THUMBNAIL BOX
+      // THUMBNAIL
       const thumbH = cardH * 0.55;
       const thumbY = by + headerH + 8;
       ctx.fillStyle = "rgba(255,255,255,0.2)";
       ctx.fillRect(bx + 12, thumbY, cardW - 24, thumbH - 12);
 
-      // Placeholder "Empty"
-      ctx.fillStyle = "#fff";
-      ctx.font = `${thumbH * 0.14}px Arial`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Empty", bx + cardW / 2, thumbY + (thumbH - 12) / 2);
+      if (slot.screenshot) {
+        const img = new Image();
+        img.src = slot.screenshot;
+        img.onload = () =>
+          ctx.drawImage(img, bx + 12, thumbY, cardW - 24, thumbH - 12);
+      } else {
+        ctx.fillStyle = "#fff";
+        ctx.font = `${thumbH * 0.14}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Empty", bx + cardW / 2, thumbY + (thumbH - 12) / 2);
+      }
 
       // BUTTONS
       const btnH = cardH * 0.12;
       const btnBottomPadding = cardH * 0.03;
       const btnY = by + cardH - btnH - btnBottomPadding;
-
       const btnCount = 3;
       const btnSpacing = (cardW - 24) * 0.03;
       const totalBtnWidth = cardW - 24 - btnSpacing * (btnCount - 1);
@@ -239,8 +313,20 @@ export default class SaveLoadPopup {
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + 12 + idx * (btnW + btnSpacing);
-        this.drawButton(ctx, i, label, btnX, btnY, btnW, btnH, -999, -999); // render without hover
+        const isHover =
+          this.hoverButton.slot === i && this.hoverButton.type === label;
+        this.drawButton(ctx, btnX, btnY, btnW, btnH, label, isHover);
       });
+
+      // Middle timestamp text
+      const spaceTop = thumbY + thumbH - 12;
+      const spaceBottom = btnY;
+      const middleY = spaceTop + (spaceBottom - spaceTop) / 2;
+      ctx.fillStyle = "#fff";
+      ctx.font = `${btnH * 0.6}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(slot.date, bx + cardW / 2, middleY);
     });
   }
 }
