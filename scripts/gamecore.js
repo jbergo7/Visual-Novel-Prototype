@@ -8,6 +8,7 @@ export class GameCore {
     this.baseHeight = 1080;
     this.scaleRatio = 1;
     this.activeScene = null;
+    this.hasRuntimeDataCache = false;
 
     // Runtime data
     this.characters = [];

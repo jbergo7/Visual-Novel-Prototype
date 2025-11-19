@@ -8,18 +8,85 @@ export class TitleScreen {
     this.backgroundColor = "#1a1a1a";
     this.hoveredButtonIndex = null;
 
-    // ★ If undefined, set default (first boot)
+    // Default flag on first boot
     if (this.core.hasSave === undefined) {
       this.core.hasSave = false;
     }
 
+    // Check saves BEFORE building UI
+    this.checkLocalSaves();
     this.updateLayout();
 
     // Event handlers
     this.clickHandler = (e) => this.handleClick(e);
     this.mouseMoveHandler = (e) => this.handleMouseMove(e);
+
     this.core.canvas.addEventListener("click", this.clickHandler);
     this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
+  }
+
+  // ------------------------------
+  // SAVE DETECTION
+  // ------------------------------
+  checkLocalSaves() {
+    this.core.hasSave = false;
+
+    for (let i = 0; i < 10; i++) {
+      const raw = localStorage.getItem("vn_save_slot_" + i);
+      if (!raw) continue;
+
+      const data = JSON.parse(raw);
+      if (data?.gameState) {
+        this.core.hasSave = true;
+        return;
+      }
+    }
+  }
+
+  getLatestSave() {
+    let latest = null;
+
+    for (let i = 0; i < 10; i++) {
+      const raw = localStorage.getItem("vn_save_slot_" + i);
+      if (!raw) continue;
+      const data = JSON.parse(raw);
+      if (!data.timestamp) continue;
+      if (!latest || new Date(data.timestamp) > new Date(latest.timestamp)) {
+        latest = { ...data, slot: i };
+      }
+    }
+
+    return latest;
+  }
+
+  // ------------------------------
+  // RESUME SYSTEM
+  // ------------------------------
+  async resumeFromGameState(gs) {
+    if (gs.currentBackground?.active) {
+      const bg = new Background(this.core, gs.currentBackground.target);
+      await bg.load();
+      this.core.setActiveScene(bg);
+      return;
+    }
+
+    if (gs.currentScene?.active) {
+      const scene = new Scene(this.core, gs.currentScene.target);
+      await scene.load();
+
+      const idx =
+        typeof gs.currentScene.dialogues === "number"
+          ? gs.currentScene.dialogues
+          : 0;
+
+      scene.currentLine = idx;
+      scene.resumeIndex = idx;
+
+      this.core.setActiveScene(scene);
+      return;
+    }
+
+    console.warn("⚠ No scene or background to resume.");
   }
 
   unload() {
@@ -37,7 +104,9 @@ export class TitleScreen {
     this.updateLayout();
   }
 
-  // ★ MAIN BUTTON LAYOUT BASED ON core.hasSave
+  // ------------------------------
+  // BUTTON LAYOUT
+  // ------------------------------
   updateLayout() {
     const canvas = this.core.canvas;
     const centerX = canvas.width / 2;
@@ -46,7 +115,6 @@ export class TitleScreen {
 
     this.buttons = [];
 
-    // ★ Add Continue if allowed
     if (this.core.hasSave) {
       this.buttons.push({
         text: "Continue",
@@ -56,7 +124,6 @@ export class TitleScreen {
       });
     }
 
-    // New Game always appears
     this.buttons.push({
       text: "New Game",
       id: "newgame",
@@ -64,7 +131,6 @@ export class TitleScreen {
       y: baseY + (this.core.hasSave ? spacing : 0),
     });
 
-    // Load Game
     this.buttons.push({
       text: "Load Game",
       id: "loadgame",
@@ -72,7 +138,6 @@ export class TitleScreen {
       y: baseY + spacing * (this.core.hasSave ? 2 : 1),
     });
 
-    // Settings
     this.buttons.push({
       text: "Settings",
       id: "settings",
@@ -80,15 +145,15 @@ export class TitleScreen {
       y: baseY + spacing * (this.core.hasSave ? 3 : 2),
     });
 
-    // ---- Calculate Equal Button Sizes ----
+    // Auto-adjust widths
     const ctx = this.core.ctx;
     let maxTextWidth = 0;
 
     this.buttons.forEach((btn) => {
       const fontSize = canvas.height * 0.035;
       ctx.font = `${fontSize}px Arial`;
-      const textWidth = ctx.measureText(btn.text).width;
-      if (textWidth > maxTextWidth) maxTextWidth = textWidth;
+      const tw = ctx.measureText(btn.text).width;
+      if (tw > maxTextWidth) maxTextWidth = tw;
     });
 
     this.buttons.forEach((btn) => {
@@ -97,8 +162,10 @@ export class TitleScreen {
     });
   }
 
+  // ------------------------------
+  // INPUT HANDLING
+  // ------------------------------
   handleMouseMove(e) {
-    // ✅ Check if SaveLoadPopup is open
     if (this.core.saveLoadPopup?.visible) return;
 
     const rect = this.core.canvas.getBoundingClientRect();
@@ -122,6 +189,101 @@ export class TitleScreen {
     });
   }
 
+  handleClick(e) {
+    if (this.core.saveLoadPopup?.visible) return;
+
+    const rect = this.core.canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    this.buttons.forEach((btn) => {
+      const hw = btn.width / 2;
+      const hh = btn.height / 2;
+
+      if (
+        mx > btn.x - hw &&
+        mx < btn.x + hw &&
+        my > btn.y - hh &&
+        my < btn.y + hh
+      ) {
+        if (btn.id === "continue") this.continueGame();
+        if (btn.id === "newgame") this.startNewGame();
+        if (btn.id === "loadgame") this.core.saveLoadPopup.open("load");
+      }
+    });
+  }
+
+  // ------------------------------
+  // GAME START & CONTINUE
+  // ------------------------------
+  async startNewGame() {
+    this.core.hasSave = false;
+    this.unload();
+    this.core.resetGameState();
+
+    const gs = this.core.gameState;
+    let started = false;
+
+    if (gs.currentBackground?.active && gs.currentBackground.target) {
+      const bg = new Background(this.core, gs.currentBackground.target);
+      await bg.load();
+      this.core.setActiveScene(bg);
+      started = true;
+    }
+
+    if (!started && gs.currentScene?.active && gs.currentScene.target) {
+      const scene = new Scene(this.core, gs.currentScene.target);
+      await scene.load();
+      scene.currentLine = gs.currentScene.dialogues || 0;
+      this.core.setActiveScene(scene);
+      started = true;
+    }
+
+    if (!started) {
+      console.warn(
+        "⚠ No default starting scene or background in gameSettings!"
+      );
+    }
+  }
+
+  async continueGame() {
+    const latest = this.getLatestSave();
+
+    console.log(latest.gameState);
+
+    if (this.core.hasRuntimeDataCache) {
+      const runtimeHasProgress =
+        this.core.gameState?.currentBackground?.active ||
+        this.core.gameState?.currentScene?.active;
+
+      if (runtimeHasProgress) {
+        this.unload();
+        return this.resumeFromGameState(this.core.gameState);
+      }
+    } else {
+      if (!latest) {
+        console.warn("⚠ Continue pressed but no save found.");
+        return;
+      }
+
+      this.core.gameState = structuredClone(latest.gameState);
+      this.core.characters = structuredClone(latest.characters);
+
+      this.core.currentCharacter =
+        this.core.characters.find((ch) => ch.default) ||
+        this.core.characters[0];
+
+      this.unload();
+      this.core.hasRuntimeDataCache = true;
+      return this.resumeFromGameState(this.core.gameState);
+    }
+  }
+
+  update() {}
+
+  // ------------------------------
+  // RENDER
+  // ------------------------------
   render(ctx) {
     const canvas = this.core.canvas;
 
@@ -129,7 +291,7 @@ export class TitleScreen {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Title
-    let titleFont = canvas.height * 0.06;
+    const titleFont = canvas.height * 0.06;
     ctx.fillStyle = "#fff";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -149,7 +311,7 @@ export class TitleScreen {
       ctx.fillText(btn.text, btn.x, btn.y);
     });
 
-    // Version + Update
+    // Version info
     const vSize = canvas.height * 0.02;
     ctx.font = `${vSize}px Arial`;
     ctx.fillStyle = "#686868";
@@ -174,110 +336,4 @@ export class TitleScreen {
       );
     }
   }
-
-  handleClick(e) {
-    // ✅ Check if SaveLoadPopup is open
-    if (this.core.saveLoadPopup?.visible) return;
-
-    const rect = this.core.canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-
-    this.buttons.forEach((btn) => {
-      const hw = btn.width / 2;
-      const hh = btn.height / 2;
-
-      if (
-        mx > btn.x - hw &&
-        mx < btn.x + hw &&
-        my > btn.y - hh &&
-        my < btn.y + hh
-      ) {
-        if (btn.id === "continue") this.continueGame(); // ★ Added
-        if (btn.id === "newgame") this.startNewGame();
-        if (btn.id === "loadgame") this.core.saveLoadPopup.open("load");
-      }
-    });
-  }
-
-  async startNewGame() {
-    // NEW GAME → remove Continue
-    this.core.hasSave = false;
-
-    // Remove TitleScreen event listeners
-    this.unload();
-
-    // Reset to original clean gameState
-    this.core.resetGameState();
-
-    // IMPORTANT: use the NEW gameState AFTER reset
-    const gameState = this.core.gameState;
-
-    let started = false;
-
-    // Start with background if default says so
-    if (
-      gameState.currentBackground?.active &&
-      gameState.currentBackground.target
-    ) {
-      const bg = new Background(this.core, gameState.currentBackground.target);
-      await bg.load();
-      this.core.setActiveScene(bg);
-      started = true;
-    }
-
-    // Start with scene if default says so
-    if (
-      !started &&
-      gameState.currentScene?.active &&
-      gameState.currentScene.target
-    ) {
-      const scene = new Scene(this.core, gameState.currentScene.target);
-      await scene.load();
-      scene.currentLine = gameState.currentScene.dialogues || 0;
-      this.core.setActiveScene(scene);
-      started = true;
-    }
-
-    if (!started) {
-      console.warn(
-        "⚠ No default starting scene or background in gameSettings!"
-      );
-    }
-  }
-
-  // ★ Continue Game
-  async continueGame() {
-    this.unload();
-    const gs = this.core.gameState;
-
-    if (gs.currentBackground?.active) {
-      const { Background } = await import("./background.js");
-      const bg = new Background(this.core, gs.currentBackground.target);
-      await bg.load();
-      this.core.setActiveScene(bg);
-      return;
-    }
-
-    if (gs.currentScene?.active) {
-      const { Scene } = await import("./scene.js");
-      const scene = new Scene(this.core, gs.currentScene.target);
-      await scene.load();
-
-      // Set current line and resume index so player cannot go back past this point
-      const savedIndex =
-        typeof gs.currentScene.dialogues === "number"
-          ? gs.currentScene.dialogues
-          : 0;
-      scene.currentLine = savedIndex;
-      scene.resumeIndex = savedIndex;
-
-      this.core.setActiveScene(scene);
-      return;
-    }
-
-    console.warn("⚠️ No saved scene to Continue!");
-  }
-
-  update() {}
 }
