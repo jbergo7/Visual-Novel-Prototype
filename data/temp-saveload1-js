@@ -32,23 +32,9 @@ export default class SaveLoadPopup {
   // OPEN/CLOSE
   // -----------------------------
   open(mode = "save") {
-    this.visible = false; // hide popup first
+    this.visible = true;
     this.mode = mode;
-    this.loadAllSlots();
-
-    // Wait 2 frames to guarantee menu popup is removed AND scene is redrawn
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        // Now capture CLEAN scene
-        this.prePopupScreenshot = this.core.canvas.toDataURL(
-          "image/jpeg",
-          0.07
-        );
-
-        // Now show the popup
-        this.visible = true;
-      });
-    });
+    this.loadAllSlots(); // refresh slot info when popup opens
   }
 
   close() {
@@ -69,15 +55,8 @@ export default class SaveLoadPopup {
       if (saved) {
         const data = JSON.parse(saved);
         slot.date = data.timestamp || "";
-        slot.data = data;
-
-        if (data.screenshot) {
-          const img = new Image();
-          img.src = data.screenshot;
-          slot.screenshot = img; // store the Image(), not the base64 string
-        } else {
-          slot.screenshot = null;
-        }
+        slot.screenshot = data.screenshot || null;
+        slot.data = data; // keep raw data for faster load
       } else {
         slot.date = "";
         slot.screenshot = null;
@@ -174,24 +153,21 @@ export default class SaveLoadPopup {
   saveSlot(index) {
     const slotKey = "vn_save_slot_" + index;
 
-    const screenshotBase64 = this.prePopupScreenshot;
+    const screenshot = this.core.canvas.toDataURL("image/png");
     const timestamp = new Date().toLocaleString();
 
     const saveData = {
       timestamp,
-      screenshot: screenshotBase64,
+      screenshot,
       gameState: structuredClone(this.core.gameState),
       characters: structuredClone(this.core.characters),
     };
 
     localStorage.setItem(slotKey, JSON.stringify(saveData));
 
-    // PRELOAD the image into the slot for rendering
-    const img = new Image();
-    img.src = screenshotBase64;
-
+    // Update UI
     this.slots[index].date = timestamp;
-    this.slots[index].screenshot = img;
+    this.slots[index].screenshot = screenshot;
     this.slots[index].data = saveData;
 
     console.log(`Saved slot ${index}`);
@@ -357,14 +333,11 @@ export default class SaveLoadPopup {
       ctx.fillStyle = "rgba(255,255,255,0.2)";
       ctx.fillRect(bx + 12, thumbY, cardW - 24, thumbH - 12);
 
-      if (slot.screenshot instanceof Image) {
-        ctx.drawImage(
-          slot.screenshot,
-          bx + 12,
-          thumbY,
-          cardW - 24,
-          thumbH - 12
-        );
+      if (slot.screenshot) {
+        const img = new Image();
+        img.src = slot.screenshot;
+        img.onload = () =>
+          ctx.drawImage(img, bx + 12, thumbY, cardW - 24, thumbH - 12);
       } else {
         ctx.fillStyle = "#fff";
         ctx.font = `${thumbH * 0.14}px Arial`;

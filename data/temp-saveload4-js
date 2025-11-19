@@ -40,10 +40,7 @@ export default class SaveLoadPopup {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         // Now capture CLEAN scene
-        this.prePopupScreenshot = this.core.canvas.toDataURL(
-          "image/jpeg",
-          0.07
-        );
+        this.prePopupScreenshot = this.core.canvas.toDataURL("image/png");
 
         // Now show the popup
         this.visible = true;

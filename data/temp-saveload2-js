@@ -32,23 +32,9 @@ export default class SaveLoadPopup {
   // OPEN/CLOSE
   // -----------------------------
   open(mode = "save") {
-    this.visible = false; // hide popup first
+    this.visible = true;
     this.mode = mode;
-    this.loadAllSlots();
-
-    // Wait 2 frames to guarantee menu popup is removed AND scene is redrawn
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        // Now capture CLEAN scene
-        this.prePopupScreenshot = this.core.canvas.toDataURL(
-          "image/jpeg",
-          0.07
-        );
-
-        // Now show the popup
-        this.visible = true;
-      });
-    });
+    this.loadAllSlots(); // refresh slot info when popup opens
   }
 
   close() {
@@ -174,7 +160,7 @@ export default class SaveLoadPopup {
   saveSlot(index) {
     const slotKey = "vn_save_slot_" + index;
 
-    const screenshotBase64 = this.prePopupScreenshot;
+    const screenshotBase64 = this.core.canvas.toDataURL("image/png");
     const timestamp = new Date().toLocaleString();
 
     const saveData = {
