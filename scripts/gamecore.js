@@ -135,7 +135,7 @@ export class GameCore {
       currentScene.dialogues = dialogueIndex ?? 0;
     }
 
-    console.log("🌀 Updated Game State:", this.gameState);
+    //console.log("🌀 Updated Game State:", this.gameState);
   }
 
   resizeCanvas() {

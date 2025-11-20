@@ -143,7 +143,16 @@ export class Scene {
     if (this.currentLine < 0 || this.currentLine >= this.dialogues.length)
       return;
 
+    // Check dialouge data
     const obj = this.dialogues[this.currentLine];
+
+    // 🔍 AUTOSAVE DETECTION HERE
+    if (obj?.autosave) {
+      console.log(
+        `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
+        "color: #4CAF50; font-weight: bold;"
+      );
+    }
 
     // ----------------- BACKGROUND ONLY -----------------
     if (obj?.background) {
@@ -266,6 +275,15 @@ export class Scene {
   handleChoice(choice) {
     const idx = this.currentLine;
     const c = this.core.currentCharacter;
+
+    // 🔥 If this choice triggers autosave
+    if (choice.autosave === true) {
+      //this.autoSaveGame();
+      console.log(
+        `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
+        "color: #4CAF50; font-weight: bold;"
+      );
+    }
 
     // Ensure preChoiceState exists
     if (!this.preChoiceState[idx]) {

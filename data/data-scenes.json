@@ -9,9 +9,10 @@
       { "background": "kitchen" },
       {
         "speaker": "Narrator",
-        "text": "Matapos magtungo sa kitchen ay agad siyang pumunta sa banyo."
+        "text": "Matapos magtungo sa kitchen ay agad siyang pumunta sa banyo.",
+        "autosave": true
       },
-      { "background": "restroom", "transition": "fade" },
+      { "background": "restroom", "transition": "fade", "autosave": true },
       {
         "speaker": "Narrator",
         "text": "Tahimik ang paligid, at ang simoy ng hangin ay malamig."
@@ -22,7 +23,11 @@
       },
       {
         "choices": [
-          { "text": "Magwork para sa gastos", "max_energy": -50 },
+          {
+            "text": "Magwork para sa gastos",
+            "max_energy": -50,
+            "autosave": true
+          },
           { "text": "Pay 50 pesos for rent", "money": -50 },
           {
             "text": "Find a cheaper place",
