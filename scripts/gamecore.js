@@ -1,4 +1,5 @@
 import SaveLoadPopup from "./components/save_load_popup.js";
+import SaveLoad from "./components/save_load_method.js";
 
 export class GameCore {
   constructor(canvasId) {
@@ -9,6 +10,8 @@ export class GameCore {
     this.scaleRatio = 1;
     this.activeScene = null;
     this.hasRuntimeDataCache = false;
+
+    this.saveloadHandler = new SaveLoad();
 
     // Runtime data
     this.characters = [];

@@ -4,6 +4,7 @@ import { PopupNotif } from "./components/popup_notif.js";
 import { StatsManager } from "./stats_manager.js";
 import MenuButton from "./components/menu_button.js";
 import MenuPopup from "./components/menu_popup.js";
+// import SaveLoad from "./components/save_load_method.js";
 
 export class Scene {
   constructor(core, sceneId) {
@@ -13,6 +14,8 @@ export class Scene {
     this.image = null;
     this.dialogues = [];
     this.currentLine = -1;
+
+    // this.autosaver = new SaveLoad();
 
     this.appliedStats = {};
     this.appliedChoiceStats = {};
@@ -148,12 +151,44 @@ export class Scene {
 
     // 🔍 AUTOSAVE DETECTION HERE
     if (obj?.autosave) {
+      this.core.saveloadHandler.autosave(this.core);
+
       console.log(
         `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
         "color: #4CAF50; font-weight: bold;"
       );
-    }
 
+      this.popupNotif?.show("Autosave", "blue");
+
+      // const slotKey = "vn_save_slot_0";
+      // const timestamp = new Date().toLocaleString();
+
+      // // Delay to next frame so siguradong rendered ang scene
+      // requestAnimationFrame(() => {
+      //   requestAnimationFrame(() => {
+      //     const screenshotBase64 = this.core.canvas.toDataURL(
+      //       "image/jpeg",
+      //       0.07
+      //     );
+
+      //     const saveData = {
+      //       timestamp,
+      //       screenshot: screenshotBase64,
+      //       gameState: structuredClone(this.core.gameState),
+      //       characters: structuredClone(this.core.characters),
+      //     };
+
+      //     localStorage.setItem(slotKey, JSON.stringify(saveData));
+
+      //     console.log(
+      //       `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
+      //       "color: #4CAF50; font-weight: bold;"
+      //     );
+
+      //     this.popupNotif?.show("Autosave", "blue");
+      //   });
+      // });
+    }
     // ----------------- BACKGROUND ONLY -----------------
     if (obj?.background) {
       await this.changeBackground(obj.background, obj.transition);
@@ -278,11 +313,14 @@ export class Scene {
 
     // 🔥 If this choice triggers autosave
     if (choice.autosave === true) {
-      //this.autoSaveGame();
+      this.core.saveloadHandler.autosave(this.core);
+
       console.log(
         `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
         "color: #4CAF50; font-weight: bold;"
       );
+
+      this.popupNotif?.show("Autosave", "blue");
     }
 
     // Ensure preChoiceState exists
