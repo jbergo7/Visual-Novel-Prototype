@@ -154,7 +154,7 @@ export class Scene {
 
       console.log(
         `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
-        "color: #4CAF50; font-weight: bold;"
+        "color: #627563ff; font-weight: bold;"
       );
 
       this.popupNotif?.show("Autosave", "blue");
