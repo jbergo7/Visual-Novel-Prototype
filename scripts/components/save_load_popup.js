@@ -4,7 +4,6 @@ export default class SaveLoadPopup {
     this.core = core;
     this.visible = false;
     this.mode = "save"; // "save" or "load"
-
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
@@ -33,6 +32,8 @@ export default class SaveLoadPopup {
   // -----------------------------
   open(mode = "save") {
     this.visible = false; // hide popup first
+    //this.core.inputLocked = true;
+
     this.mode = mode;
     this.loadAllSlots();
 
@@ -53,6 +54,7 @@ export default class SaveLoadPopup {
 
   close() {
     this.visible = false;
+    //this.core.inputLocked = false;
   }
 
   dispose() {
@@ -154,6 +156,10 @@ export default class SaveLoadPopup {
   // -----------------------------
   onClick(e) {
     if (!this.visible) return;
+
+    // 🔥 block the click from reaching Scene.js
+    e.stopImmediatePropagation();
+    e.preventDefault();
 
     if (this.closeHover) {
       this.close();

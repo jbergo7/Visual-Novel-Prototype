@@ -60,21 +60,24 @@ export class Scene {
 
     this.unload();
 
-    this.ignoreClickAfterPopup = false;
-
     // click handler
     this.clickHandler = (e) => {
       // ✅ Check if SaveLoadPopup is open
-      if (this.core.saveLoadPopup?.visible) {
-        this.ignoreClickAfterPopup = true;
-        return;
-      }
+      if (this.core.saveLoadPopup?.visible) return;
       if (this.menuPopup.visible) return;
 
-      if (this.ignoreClickAfterPopup) {
-        this.ignoreClickAfterPopup = false;
-        return; // ignore first click after closing popup
-      }
+      // completely block interaction when popup is visible
+      // if (this.core.saveLoadPopup?.visible) {
+      //   e.stopPropagation();
+      //   e.preventDefault();
+      //   return;
+      // }
+
+      // if (this.menuPopup.visible) {
+      //   e.stopPropagation();
+      //   e.preventDefault();
+      //   return;
+      // }
 
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
