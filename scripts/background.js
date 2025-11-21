@@ -41,6 +41,15 @@ export class Background {
       const bgCache = this.core.dataCache?.backgrounds;
       this.bgData = bgCache[this.backgroundId];
 
+      if (this.bgData.autosave) {
+        this.core.saveloadHandler.autosave(this.core);
+        this.popupNotif?.show("Autosave", "blue");
+        console.log(
+          `%c[AUTOSAVE] Background loaded: ${this.backgroundId}`,
+          "color: cyan; font-weight: bold;"
+        );
+      }
+
       if (!this.bgData)
         throw new Error(`Background '${this.backgroundId}' not found.`);
 
@@ -64,6 +73,16 @@ export class Background {
 
           const action = btn.data?.action;
           if (!action) return;
+
+          // 🔍 AUTOSAVE: action-level
+          if (action.autosave) {
+            this.core.saveloadHandler.autosave(this.core);
+            this.popupNotif?.show("Autosave", "blue");
+            console.log(
+              `%c[AUTOSAVE] Button action triggered in ${this.backgroundId} → ${action.type}:${action.target}`,
+              "color: yellow; font-weight: bold;"
+            );
+          }
 
           const check = this.statsManager.checkResources(action);
           if (!check.enough) {

@@ -1,6 +1,7 @@
 {
   "home": {
     "image": "assets/bg_home.jpg",
+    "autosave": true,
     "buttons": [
       {
         "id": "shop",
@@ -9,7 +10,10 @@
         "width": 250,
         "height": 80,
         "text": "Shop",
-        "action": { "type": "background", "target": "grocery" }
+        "action": {
+          "type": "background",
+          "target": "grocery"
+        }
       },
       {
         "id": "rest",

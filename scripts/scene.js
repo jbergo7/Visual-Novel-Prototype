@@ -67,6 +67,7 @@ export class Scene {
     this.clickHandler = (e) => {
       // ✅ Check if SaveLoadPopup is open
       if (this.core.saveLoadPopup?.visible) return;
+      if (this.menuPopup.visible) return;
 
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -82,8 +83,6 @@ export class Scene {
         this.ignoreNextClick = false;
         return;
       }
-
-      if (this.menuPopup.visible) return;
 
       this.nextDialogue();
     };
