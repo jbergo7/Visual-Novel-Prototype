@@ -7,11 +7,6 @@ export default class SaveLoadPopup {
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
-    //this.totalSlots = 30;
-    this.slotsPerPage = 10;
-    this.totalPages = 3;
-    this.currentPage = 1;
-
     // 10 save slots placeholder
     this.slots = Array(10)
       .fill(null)
@@ -71,38 +66,26 @@ export default class SaveLoadPopup {
   // LOAD SLOT DATA FROM LOCALSTORAGE
   // -----------------------------
   loadAllSlots() {
-    const start = (this.currentPage - 1) * this.slotsPerPage;
-    const end = start + this.slotsPerPage;
+    this.slots.forEach((slot, i) => {
+      const saved = localStorage.getItem("vn_save_slot_" + i);
+      if (saved) {
+        const data = JSON.parse(saved);
+        slot.date = data.timestamp || "";
+        slot.data = data;
 
-    this.slots = Array(10)
-      .fill(null)
-      .map((_, i) => {
-        const slotIndex = start + i;
-
-        const slot = {
-          id: slotIndex,
-          screenshot: null,
-          header: slotIndex === 0 ? "Autosave" : "Slot " + slotIndex,
-          date: "",
-          data: null,
-        };
-
-        const saved = localStorage.getItem("vn_save_slot_" + slotIndex);
-
-        if (saved) {
-          const data = JSON.parse(saved);
-          slot.date = data.timestamp || "";
-          slot.data = data;
-
-          if (data.screenshot) {
-            const img = new Image();
-            img.src = data.screenshot;
-            slot.screenshot = img;
-          }
+        if (data.screenshot) {
+          const img = new Image();
+          img.src = data.screenshot;
+          slot.screenshot = img; // store the Image(), not the base64 string
+        } else {
+          slot.screenshot = null;
         }
-
-        return slot;
-      });
+      } else {
+        slot.date = "";
+        slot.screenshot = null;
+        slot.data = null;
+      }
+    });
   }
 
   // -----------------------------
@@ -189,38 +172,8 @@ export default class SaveLoadPopup {
       return;
     }
 
-    // PAGINATION CLICK
-    const rect = this.core.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const canvas = this.core.canvas;
-    const btnW = canvas.width * 0.12;
-    const btnH = canvas.height * 0.06;
-    const btnY = canvas.height * 0.93;
-
-    const prevX = canvas.width * 0.3;
-    const nextX = canvas.width * 0.58;
-
-    if (x >= prevX && x <= prevX + btnW && y >= btnY && y <= btnY + btnH) {
-      if (this.currentPage > 1) {
-        this.currentPage--;
-        this.loadAllSlots();
-      }
-      return;
-    }
-
-    if (x >= nextX && x <= nextX + btnW && y >= btnY && y <= btnY + btnH) {
-      if (this.currentPage < this.totalPages) {
-        this.currentPage++;
-        this.loadAllSlots();
-      }
-      return;
-    }
-
     const { slot, type } = this.hoverButton;
     if (slot !== -1 && type) {
-      const realIndex = this.slots[slot].id;
       const s = this.slots[slot];
 
       // 🛑 BLOCK CLICK WHEN BUTTON IS DISABLED
@@ -228,9 +181,9 @@ export default class SaveLoadPopup {
       if (type === "Load" && this.mode === "save") return;
       if (type === "Delete" && !s.data) return;
 
-      if (type === "Save") this.saveSlot(realIndex);
-      else if (type === "Load") this.loadSlot(realIndex);
-      else if (type === "Delete") this.deleteSlot(realIndex);
+      if (type === "Save") this.saveSlot(slot);
+      else if (type === "Load") this.loadSlot(slot);
+      else if (type === "Delete") this.deleteSlot(slot);
     }
   }
 
@@ -372,42 +325,6 @@ export default class SaveLoadPopup {
     // BG
     ctx.fillStyle = "rgba(0,0,0,0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // PAGINATION
-    const btnW = canvas.width * 0.12;
-    const btnH = canvas.height * 0.06;
-    const btnY = canvas.height * 0.93;
-
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `${btnH * 0.45}px Arial`;
-
-    // Prev button
-    const prevX = canvas.width * 0.3;
-    const nextX = canvas.width * 0.58;
-
-    ctx.fillStyle =
-      this.currentPage > 1 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.05)";
-    ctx.fillRect(prevX, btnY, btnW, btnH);
-    ctx.fillStyle = "#fff";
-    ctx.fillText("Prev", prevX + btnW / 2, btnY + btnH / 2);
-
-    // Next button
-    ctx.fillStyle =
-      this.currentPage < this.totalPages
-        ? "rgba(255,255,255,0.2)"
-        : "rgba(255,255,255,0.05)";
-    ctx.fillRect(nextX, btnY, btnW, btnH);
-    ctx.fillStyle = "#fff";
-    ctx.fillText("Next", nextX + btnW / 2, btnY + btnH / 2);
-
-    // PAGE LABEL
-    ctx.fillStyle = "#fff";
-    ctx.fillText(
-      `Page ${this.currentPage} / ${this.totalPages}`,
-      canvas.width * 0.5,
-      btnY + btnH / 2
-    );
 
     // TITLE
     ctx.fillStyle = "#fff";
