@@ -13,15 +13,23 @@ export class DialogueChoices {
       ...choice,
       disabled: this.isChoiceDisabled(choice),
     }));
-    this.core.canvas.addEventListener("click", this.clickHandler);
-    this.core.canvas.addEventListener("mousemove", this.moveHandler);
+    this.core.canvas.addEventListener("click", this.clickHandler, {
+      capture: true,
+    });
+    this.core.canvas.addEventListener("mousemove", this.moveHandler, {
+      capture: true,
+    });
   }
 
   clear() {
     this.choices = [];
     this.hoverIndex = -1;
-    this.core.canvas.removeEventListener("click", this.clickHandler);
-    this.core.canvas.removeEventListener("mousemove", this.moveHandler);
+    this.core.canvas.removeEventListener("click", this.clickHandler, {
+      capture: true,
+    });
+    this.core.canvas.removeEventListener("mousemove", this.moveHandler, {
+      capture: true,
+    });
   }
 
   isChoiceDisabled(choice) {
@@ -78,8 +86,8 @@ export class DialogueChoices {
     if (this.choices.length === 0) return;
     // Block click if menu or SaveLoadPopup visible
     if (this.core.menuPopup.visible || this.core.saveLoadPopup?.visible) {
-      e.stopImmediatePropagation(); // 🔥 Siguraduhin na hihinto agad
-      e.preventDefault();
+      //e.stopImmediatePropagation(); // 🔥 Siguraduhin na hihinto agad
+      //e.preventDefault();
       return;
     }
 
