@@ -144,6 +144,12 @@ export default class SaveLoadPopup {
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + 12 + idx * (btnW + btnSpacing);
+
+        // 🛑 BLOCK hover when disabled
+        if (label === "Save" && this.mode === "load") return;
+        if (label === "Load" && this.mode === "save") return;
+        if (label === "Delete" && !slot.data) return;
+
         if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
           this.hoverButton = { slot: i, type: label };
         }
@@ -168,6 +174,13 @@ export default class SaveLoadPopup {
 
     const { slot, type } = this.hoverButton;
     if (slot !== -1 && type) {
+      const s = this.slots[slot];
+
+      // 🛑 BLOCK CLICK WHEN BUTTON IS DISABLED
+      if (type === "Save" && this.mode === "load") return;
+      if (type === "Load" && this.mode === "save") return;
+      if (type === "Delete" && !s.data) return;
+
       if (type === "Save") this.saveSlot(slot);
       else if (type === "Load") this.loadSlot(slot);
       else if (type === "Delete") this.deleteSlot(slot);
@@ -279,10 +292,12 @@ export default class SaveLoadPopup {
   // -----------------------------
   // DRAW BUTTON
   // -----------------------------
-  drawButton(ctx, x, y, w, h, label, isHover) {
+  drawButton(ctx, x, y, w, h, label, isHover, slot) {
     let disabled = false;
     if (this.mode === "save" && label === "Load") disabled = true;
     if (this.mode === "load" && label === "Save") disabled = true;
+
+    if (label === "Delete" && !slot.data) disabled = true;
 
     ctx.fillStyle = disabled
       ? "rgba(255,255,255,0.08)"
@@ -393,7 +408,7 @@ export default class SaveLoadPopup {
         const btnX = bx + 12 + idx * (btnW + btnSpacing);
         const isHover =
           this.hoverButton.slot === i && this.hoverButton.type === label;
-        this.drawButton(ctx, btnX, btnY, btnW, btnH, label, isHover);
+        this.drawButton(ctx, btnX, btnY, btnW, btnH, label, isHover, slot);
       });
 
       // Middle timestamp text
