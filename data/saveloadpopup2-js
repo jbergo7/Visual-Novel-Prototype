@@ -7,29 +7,21 @@ export default class SaveLoadPopup {
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
-    // New state for modal
-    this.modal = {
-      visible: false,
-      slotIndex: -1, // The slot that needs to be overwritten
-      hoverYes: false,
-      hoverNo: false,
-    };
-
-    // A. Declare number of slots
+    // A. I-declare lang ang total slots
     this.totalSlots = 30;
 
     // B. Layout-based calculation: 2 rows * 5 columns
     const SLOTS_ROWS = 2;
     const SLOTS_COLS = 5;
 
-    // Slots per page is derived from layout
+    // Slots per page ay derived mula sa layout
     this.slotsPerPage = SLOTS_ROWS * SLOTS_COLS; // 10
-    // Total pages is derived from total slots and slots per page
+    // Total pages ay derived mula sa total slots at slots per page
     this.totalPages = Math.ceil(this.totalSlots / this.slotsPerPage); // 30 / 10 = 3
     this.currentPage = 1;
 
-    // C. this.slots should depend on slotsPerPage, not be hardcoded to 10
-    // This will set placeholders for the current page (10 slots)
+    // C. Ang this.slots ay dapat nakadepende sa slotsPerPage, hindi hardcoded sa 10
+    // Magse-set ito ng placeholder para sa kasalukuyang page (10 slots)
     this.slots = Array(this.slotsPerPage)
       .fill(null)
       .map((_, i) => ({
@@ -54,7 +46,7 @@ export default class SaveLoadPopup {
   // -----------------------------
   open(mode = "save") {
     this.visible = false; // hide popup first
-    this.modal.visible = false; // Make sure the modal is hidden
+    //this.core.inputLocked = true;
 
     this.mode = mode;
     this.loadAllSlots();
@@ -76,7 +68,7 @@ export default class SaveLoadPopup {
 
   close() {
     this.visible = false;
-    this.modal.visible = false; // Close the modal along with the popup
+    //this.core.inputLocked = false;
   }
 
   dispose() {
@@ -88,17 +80,17 @@ export default class SaveLoadPopup {
   // LOAD SLOT DATA FROM LOCALSTORAGE
   // -----------------------------
   loadAllSlots() {
-    // Make sure it does not exceed totalPages
+    // Tiyakin na hindi hihigit sa totalPages
     if (this.currentPage > this.totalPages) this.currentPage = this.totalPages;
     if (this.currentPage < 1) this.currentPage = 1;
 
     const start = (this.currentPage - 1) * this.slotsPerPage;
-    // The end may be less than slotsPerPage on the last page
+    // Ang end ay maaaring mas kaunti sa slotsPerPage sa huling page
     const end = Math.min(start + this.slotsPerPage, this.totalSlots);
-    // The number of slots to display on this page
+    // Ang bilang ng slots na ipapakita sa page na ito
     const slotsToRender = end - start;
 
-    // Use slotsToRender (not slotsPerPage) to get the correct array length on the last page.
+    // Gumamit ng slotsToRender (hindi slotsPerPage) upang tama ang haba ng array sa huling page.
     this.slots = Array(slotsToRender)
       .fill(null)
       .map((_, i) => {
@@ -107,7 +99,7 @@ export default class SaveLoadPopup {
         const slot = {
           id: slotIndex,
           screenshot: null,
-          // Header: Autosave if slot 0, otherwise Slot X
+          // Header: Autosave kung slot 0, kung hindi ay Slot X
           header: slotIndex === 0 ? "Autosave" : "Slot " + slotIndex,
           date: "",
           data: null,
@@ -144,33 +136,6 @@ export default class SaveLoadPopup {
 
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
-
-    // --- Modal Hover Logic ---
-    if (this.modal.visible) {
-      this.modal.hoverYes = false;
-      this.modal.hoverNo = false;
-
-      const modalW = canvas.width * 0.4;
-      const modalH = canvas.height * 0.2;
-      const modalX = (canvas.width - modalW) / 2;
-      const modalY = (canvas.height - modalH) / 2;
-
-      const btnW = modalW * 0.3;
-      const btnH = modalH * 0.25;
-      const gap = modalW * 0.05;
-      const btnY = modalY + modalH - btnH - modalH * 0.1;
-
-      const yesX = modalX + modalW * 0.1;
-      const noX = modalX + modalW - btnW - modalW * 0.1;
-
-      if (x >= yesX && x <= yesX + btnW && y >= btnY && y <= btnY + btnH) {
-        this.modal.hoverYes = true;
-      } else if (x >= noX && x <= noX + btnW && y >= btnY && y <= btnY + btnH) {
-        this.modal.hoverNo = true;
-      }
-      return; // Do not check the other buttons when the modal is visible
-    }
-    // -------------------------
 
     // CLOSE BUTTON
     const closeSize = canvas.width * 0.03;
@@ -237,49 +202,17 @@ export default class SaveLoadPopup {
     e.stopImmediatePropagation();
     e.preventDefault();
 
-    const rect = this.core.canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const canvas = this.core.canvas;
-
-    // --- Modal Click Logic ---
-    if (this.modal.visible) {
-      const modalW = canvas.width * 0.4;
-      const modalH = canvas.height * 0.2;
-      const modalX = (canvas.width - modalW) / 2;
-      const modalY = (canvas.height - modalH) / 2;
-
-      const btnW = modalW * 0.3;
-      const btnH = modalH * 0.25;
-      const btnY = modalY + modalH - btnH - modalH * 0.1;
-      const yesX = modalX + modalW * 0.1;
-      const noX = modalX + modalW - btnW - modalW * 0.1;
-
-      // YES button click
-      if (this.modal.hoverYes) {
-        this.modal.visible = false;
-        // Tuloy sa pag-save!
-        this._executeSave(this.modal.slotIndex);
-        return;
-      }
-
-      // NO button click
-      if (this.modal.hoverNo) {
-        this.modal.visible = false;
-        return;
-      }
-
-      // Click outside of buttons, inside modal - no action
-      return;
-    }
-    // -------------------------
-
     if (this.closeHover) {
       this.close();
       return;
     }
 
     // PAGINATION CLICK
+    const rect = this.core.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const canvas = this.core.canvas;
     const btnW = canvas.width * 0.12;
     const btnH = canvas.height * 0.06;
     const btnY = canvas.height * 0.93;
@@ -313,25 +246,16 @@ export default class SaveLoadPopup {
       if (type === "Load" && this.mode === "save") return;
       if (type === "Delete" && !s.data) return;
 
-      if (type === "Save") {
-        // 🔥 Logic for the Overwrite Check
-        if (s.data) {
-          // The slot has content; show a confirmation modal
-          this.modal.visible = true;
-          this.modal.slotIndex = realIndex;
-        } else {
-          // Empty, proceed with saving
-          this._executeSave(realIndex);
-        }
-      } else if (type === "Load") this.loadSlot(realIndex);
+      if (type === "Save") this.saveSlot(realIndex);
+      else if (type === "Load") this.loadSlot(realIndex);
       else if (type === "Delete") this.deleteSlot(realIndex);
     }
   }
 
   // -----------------------------
-  // PRIVATE SAVE EXECUTION METHOD
+  // SAVE SLOT
   // -----------------------------
-  _executeSave(index) {
+  saveSlot(index) {
     const slotKey = "vn_save_slot_" + index;
 
     const screenshotBase64 = this.prePopupScreenshot;
@@ -346,7 +270,7 @@ export default class SaveLoadPopup {
 
     localStorage.setItem(slotKey, JSON.stringify(saveData));
 
-    // Find the slot in the current array (this.slots) to update the display
+    // Hanapin ang slot sa kasalukuyang array (this.slots) upang ma-update ang display
     const currentSlot = this.slots.find((s) => s.id === index);
 
     if (currentSlot) {
@@ -358,6 +282,9 @@ export default class SaveLoadPopup {
       currentSlot.screenshot = img;
       currentSlot.data = saveData;
     } else {
+      // Ito ay nangyayari lamang kung nag-save sa slot na wala sa kasalukuyang page,
+      // ngunit sa lohika ng click/hover, dapat nasa current page ang slot na i-se-save.
+      // Kaya dapat hindi ito kailanganin, pero panigurado, i-reload na lang.
       this.loadAllSlots();
     }
 
@@ -365,27 +292,10 @@ export default class SaveLoadPopup {
   }
 
   // -----------------------------
-  // SAVE SLOT (REPLACED WITH OVERWRITE LOGIC)
-  // -----------------------------
-  // saveSlot(index) { ... } // The previous saveSlot logic was moved to _executeSave and replaced with an overwrite check in onClick
-
-  saveSlot(index) {
-    // 🔥 Its content has been replaced. The logic is now in onClick.
-    // Made this just a wrapper in case another function calls it.
-    const currentSlot = this.slots.find((s) => s.id === index);
-    if (currentSlot && currentSlot.data) {
-      this.modal.visible = true;
-      this.modal.slotIndex = index;
-    } else {
-      this._executeSave(index);
-    }
-  }
-
-  // -----------------------------
   // LOAD SLOT + AUTO CONTINUE GAME
   // -----------------------------
   async loadSlot(index) {
-    // Find the slot in the current array (this.slots)
+    // Hanapin ang slot sa kasalukuyang array (this.slots)
     const currentSlot = this.slots.find((s) => s.id === index);
     const slot = currentSlot ? currentSlot.data : null;
 
@@ -449,7 +359,7 @@ export default class SaveLoadPopup {
     const slotKey = "vn_save_slot_" + index;
     localStorage.removeItem(slotKey);
 
-    // Find the slot in the current array (this.slots)
+    // Hanapin ang slot sa kasalukuyang array (this.slots)
     const currentSlot = this.slots.find((s) => s.id === index);
 
     if (currentSlot) {
@@ -489,71 +399,6 @@ export default class SaveLoadPopup {
   }
 
   // -----------------------------
-  // DRAW MODAL
-  // -----------------------------
-  drawModal(ctx, canvas) {
-    const modalW = canvas.width * 0.4;
-    const modalH = canvas.height * 0.2;
-    const modalX = (canvas.width - modalW) / 2;
-    const modalY = (canvas.height - modalH) / 2;
-
-    // Dim Background
-    ctx.fillStyle = "rgba(0,0,0,0.8)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Modal Box
-    ctx.fillStyle = "rgba(20,20,20,1)";
-    ctx.fillRect(modalX, modalY, modalW, modalH);
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(modalX, modalY, modalW, modalH);
-
-    // Text
-    ctx.fillStyle = "#fff";
-    ctx.font = `${modalH * 0.15}px Arial`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(
-      "Do you want to overwrite the data?",
-      modalX + modalW / 2,
-      modalY + modalH * 0.3
-    );
-
-    const slotNum = this.modal.slotIndex;
-    const slotHeader = slotNum === 0 ? "Autosave" : "Slot " + slotNum;
-
-    ctx.font = `${modalH * 0.12}px Arial`;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-    ctx.fillText(`(${slotHeader})`, modalX + modalW / 2, modalY + modalH * 0.5);
-
-    // Buttons
-    const btnW = modalW * 0.3;
-    const btnH = modalH * 0.25;
-    const btnY = modalY + modalH - btnH - modalH * 0.1;
-
-    const yesX = modalX + modalW * 0.1;
-    const noX = modalX + modalW - btnW - modalW * 0.1;
-
-    // Yes Button
-    ctx.fillStyle = this.modal.hoverYes
-      ? "rgba(50,150,50,0.7)"
-      : "rgba(50,150,50,0.5)";
-    ctx.fillRect(yesX, btnY, btnW, btnH);
-    ctx.fillStyle = "#fff";
-    ctx.font = `${btnH * 0.6}px Arial`;
-    ctx.fillText("YES", yesX + btnW / 2, btnY + btnH / 2);
-
-    // No Button
-    ctx.fillStyle = this.modal.hoverNo
-      ? "rgba(150,50,50,0.7)"
-      : "rgba(150,50,50,0.5)";
-    ctx.fillRect(noX, btnY, btnW, btnH);
-    ctx.fillStyle = "#fff";
-    ctx.font = `${btnH * 0.6}px Arial`;
-    ctx.fillText("NO", noX + btnW / 2, btnY + btnH / 2);
-  }
-
-  // -----------------------------
   // RENDER
   // -----------------------------
   render(ctx) {
@@ -561,7 +406,6 @@ export default class SaveLoadPopup {
 
     const canvas = this.core.canvas;
 
-    // --- Draw Main Popup Content ---
     // BG
     ctx.fillStyle = "rgba(0,0,0,0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -697,10 +541,5 @@ export default class SaveLoadPopup {
       ctx.textBaseline = "middle";
       ctx.fillText(slot.date, bx + cardW / 2, middleY);
     });
-
-    // --- Draw Modal Overlay (if visible) ---
-    if (this.modal.visible) {
-      this.drawModal(ctx, canvas);
-    }
   }
 }
