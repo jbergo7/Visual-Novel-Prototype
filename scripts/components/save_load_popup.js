@@ -7,10 +7,14 @@ export default class SaveLoadPopup {
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
-    // New state for modal
+    // ----------------------------------------------------
+    // 🔥 REUSABLE MODAL STATE
+    // ----------------------------------------------------
     this.modal = {
       visible: false,
-      slotIndex: -1, // The slot that needs to be overwritten
+      message: "", // The text to display (e.g. "Overwrite?", "Delete?")
+      subMessage: "", // Additional info (e.g. "(Slot 1)")
+      onConfirm: null, // Function to run when the user clicks YES
       hoverYes: false,
       hoverNo: false,
     };
@@ -22,18 +26,14 @@ export default class SaveLoadPopup {
     const SLOTS_ROWS = 2;
     const SLOTS_COLS = 5;
 
-    // Slots per page is derived from layout
     this.slotsPerPage = SLOTS_ROWS * SLOTS_COLS; // 10
-    // Total pages is derived from total slots and slots per page
-    this.totalPages = Math.ceil(this.totalSlots / this.slotsPerPage); // 30 / 10 = 3
+    this.totalPages = Math.ceil(this.totalSlots / this.slotsPerPage);
     this.currentPage = 1;
 
-    // C. this.slots should depend on slotsPerPage, not be hardcoded to 10
-    // This will set placeholders for the current page (10 slots)
     this.slots = Array(this.slotsPerPage)
       .fill(null)
       .map((_, i) => ({
-        id: i, // temporary id, will be updated in loadAllSlots
+        id: i,
         screenshot: null,
         header: "Slot " + i,
         date: "",
@@ -53,22 +53,18 @@ export default class SaveLoadPopup {
   // OPEN/CLOSE
   // -----------------------------
   open(mode = "save") {
-    this.visible = false; // hide popup first
-    this.modal.visible = false; // Make sure the modal is hidden
+    this.visible = false;
+    this.modal.visible = false; // Reset modal
 
     this.mode = mode;
     this.loadAllSlots();
 
-    // Wait 2 frames to guarantee menu popup is removed AND scene is redrawn
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // Now capture CLEAN scene
         this.prePopupScreenshot = this.core.canvas.toDataURL(
           "image/jpeg",
           0.07
         );
-
-        // Now show the popup
         this.visible = true;
       });
     });
@@ -76,7 +72,7 @@ export default class SaveLoadPopup {
 
   close() {
     this.visible = false;
-    this.modal.visible = false; // Close the modal along with the popup
+    this.modal.visible = false;
   }
 
   dispose() {
@@ -85,29 +81,23 @@ export default class SaveLoadPopup {
   }
 
   // -----------------------------
-  // LOAD SLOT DATA FROM LOCALSTORAGE
+  // LOAD SLOT DATA
   // -----------------------------
   loadAllSlots() {
-    // Make sure it does not exceed totalPages
     if (this.currentPage > this.totalPages) this.currentPage = this.totalPages;
     if (this.currentPage < 1) this.currentPage = 1;
 
     const start = (this.currentPage - 1) * this.slotsPerPage;
-    // The end may be less than slotsPerPage on the last page
     const end = Math.min(start + this.slotsPerPage, this.totalSlots);
-    // The number of slots to display on this page
     const slotsToRender = end - start;
 
-    // Use slotsToRender (not slotsPerPage) to get the correct array length on the last page.
     this.slots = Array(slotsToRender)
       .fill(null)
       .map((_, i) => {
         const slotIndex = start + i;
-
         const slot = {
           id: slotIndex,
           screenshot: null,
-          // Header: Autosave if slot 0, otherwise Slot X
           header: slotIndex === 0 ? "Autosave" : "Slot " + slotIndex,
           date: "",
           data: null,
@@ -126,9 +116,88 @@ export default class SaveLoadPopup {
             slot.screenshot = img;
           }
         }
-
         return slot;
       });
+  }
+
+  // -----------------------------
+  // 🛠️ HELPER: TEXT WRAPPING
+  // -----------------------------
+  // Splits long text into a lines array based on maxWidth
+  getLines(ctx, text, maxWidth) {
+    const words = text.split(" ");
+    const lines = [];
+    let currentLine = words[0];
+
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+      const width = ctx.measureText(currentLine + " " + word).width;
+      if (width < maxWidth) {
+        currentLine += " " + word;
+      } else {
+        lines.push(currentLine);
+        currentLine = word;
+      }
+    }
+    lines.push(currentLine);
+    return lines;
+  }
+
+  // -----------------------------
+  // 🛠️ HELPER: CALCULATE MODAL LAYOUT
+  // -----------------------------
+  // This calculates the size and positions to keep drawing and mouse detection consistent
+  getModalLayout(ctx, canvas) {
+    const modalW = canvas.width * 0.4;
+    const padding = modalW * 0.1;
+
+    // Fonts
+    const fontSize = canvas.height * 0.03; // Base text size
+    ctx.font = `${fontSize}px Arial`;
+
+    // Wrap text logic
+    const maxTextWidth = modalW - padding * 2;
+    const textLines = this.getLines(ctx, this.modal.message, maxTextWidth);
+
+    // Submessage (optional)
+    const subMsgLines = this.modal.subMessage
+      ? this.getLines(ctx, this.modal.subMessage, maxTextWidth)
+      : [];
+
+    // Calculate Heights
+    const lineHeight = fontSize * 1.5;
+    const textBlockH = (textLines.length + subMsgLines.length) * lineHeight;
+
+    const btnH = canvas.height * 0.05;
+    const btnGap = canvas.height * 0.04; // gap between text and buttons
+
+    // 🔥 DYNAMIC HEIGHT CALCULATION
+    // Padding Top + Text Block + Gap + Button Height + Padding Bottom
+    const modalH = padding + textBlockH + btnGap + btnH + padding;
+
+    const modalX = (canvas.width - modalW) / 2;
+    const modalY = (canvas.height - modalH) / 2;
+
+    // Button Positions
+    const btnW = modalW * 0.3;
+    const btnY = modalY + modalH - padding - btnH; // Anchor to bottom padding
+    const yesX = modalX + modalW * 0.15;
+    const noX = modalX + modalW - btnW - modalW * 0.15;
+
+    return {
+      modalX,
+      modalY,
+      modalW,
+      modalH,
+      textLines,
+      subMsgLines,
+      lineHeight,
+      btnX: { yes: yesX, no: noX },
+      btnY,
+      btnW,
+      btnH,
+      padding,
+    };
   }
 
   // -----------------------------
@@ -145,32 +214,31 @@ export default class SaveLoadPopup {
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
-    // --- Modal Hover Logic ---
+    // --- Modal Hover Logic (Reusable) ---
     if (this.modal.visible) {
       this.modal.hoverYes = false;
       this.modal.hoverNo = false;
 
-      const modalW = canvas.width * 0.4;
-      const modalH = canvas.height * 0.2;
-      const modalX = (canvas.width - modalW) / 2;
-      const modalY = (canvas.height - modalH) / 2;
+      const ctx = canvas.getContext("2d"); // Need ctx for measurement
+      const layout = this.getModalLayout(ctx, canvas);
 
-      const btnW = modalW * 0.3;
-      const btnH = modalH * 0.25;
-      const gap = modalW * 0.05;
-      const btnY = modalY + modalH - btnH - modalH * 0.1;
-
-      const yesX = modalX + modalW * 0.1;
-      const noX = modalX + modalW - btnW - modalW * 0.1;
-
-      if (x >= yesX && x <= yesX + btnW && y >= btnY && y <= btnY + btnH) {
+      if (
+        x >= layout.btnX.yes &&
+        x <= layout.btnX.yes + layout.btnW &&
+        y >= layout.btnY &&
+        y <= layout.btnY + layout.btnH
+      ) {
         this.modal.hoverYes = true;
-      } else if (x >= noX && x <= noX + btnW && y >= btnY && y <= btnY + btnH) {
+      } else if (
+        x >= layout.btnX.no &&
+        x <= layout.btnX.no + layout.btnW &&
+        y >= layout.btnY &&
+        y <= layout.btnY + layout.btnH
+      ) {
         this.modal.hoverNo = true;
       }
-      return; // Do not check the other buttons when the modal is visible
+      return; // Block interaction with slots underneath
     }
-    // -------------------------
 
     // CLOSE BUTTON
     const closeSize = canvas.width * 0.03;
@@ -187,7 +255,7 @@ export default class SaveLoadPopup {
       return;
     }
 
-    // CARD GRID
+    // CARD GRID (Standard hover logic)
     const cols = 5;
     const cardW = canvas.width * 0.16;
     const cardH = canvas.height * 0.33;
@@ -202,7 +270,6 @@ export default class SaveLoadPopup {
       const bx = startX + col * (cardW + gapX);
       const by = startY + row * (cardH + gapY);
 
-      // BUTTONS
       const btnH = cardH * 0.12;
       const btnBottomPadding = cardH * 0.03;
       const btnY = by + cardH - btnH - btnBottomPadding;
@@ -215,7 +282,6 @@ export default class SaveLoadPopup {
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + 12 + idx * (btnW + btnSpacing);
 
-        // 🛑 BLOCK hover when disabled
         if (label === "Save" && this.mode === "load") return;
         if (label === "Load" && this.mode === "save") return;
         if (label === "Delete" && !slot.data) return;
@@ -233,7 +299,6 @@ export default class SaveLoadPopup {
   onClick(e) {
     if (!this.visible) return;
 
-    // 🔥 block the click from reaching Scene.js
     e.stopImmediatePropagation();
     e.preventDefault();
 
@@ -242,48 +307,26 @@ export default class SaveLoadPopup {
     const y = e.clientY - rect.top;
     const canvas = this.core.canvas;
 
-    // --- Modal Click Logic ---
+    // --- Modal Click Logic (Reusable) ---
     if (this.modal.visible) {
-      const modalW = canvas.width * 0.4;
-      const modalH = canvas.height * 0.2;
-      const modalX = (canvas.width - modalW) / 2;
-      const modalY = (canvas.height - modalH) / 2;
-
-      const btnW = modalW * 0.3;
-      const btnH = modalH * 0.25;
-      const btnY = modalY + modalH - btnH - modalH * 0.1;
-      const yesX = modalX + modalW * 0.1;
-      const noX = modalX + modalW - btnW - modalW * 0.1;
-
-      // YES button click
-      if (this.modal.hoverYes) {
+      if (this.modal.hoverYes && this.modal.onConfirm) {
+        this.modal.onConfirm(); // Run the stored action
         this.modal.visible = false;
-        // Tuloy sa pag-save!
-        this._executeSave(this.modal.slotIndex);
-        return;
+      } else if (this.modal.hoverNo) {
+        this.modal.visible = false; // Just close
       }
-
-      // NO button click
-      if (this.modal.hoverNo) {
-        this.modal.visible = false;
-        return;
-      }
-
-      // Click outside of buttons, inside modal - no action
       return;
     }
-    // -------------------------
 
     if (this.closeHover) {
       this.close();
       return;
     }
 
-    // PAGINATION CLICK
+    // PAGINATION
     const btnW = canvas.width * 0.12;
     const btnH = canvas.height * 0.06;
     const btnY = canvas.height * 0.93;
-
     const prevX = canvas.width * 0.3;
     const nextX = canvas.width * 0.58;
 
@@ -303,37 +346,57 @@ export default class SaveLoadPopup {
       return;
     }
 
+    // SLOT BUTTONS
     const { slot, type } = this.hoverButton;
     if (slot !== -1 && type) {
       const realIndex = this.slots[slot].id;
       const s = this.slots[slot];
 
-      // 🛑 BLOCK CLICK WHEN BUTTON IS DISABLED
       if (type === "Save" && this.mode === "load") return;
       if (type === "Load" && this.mode === "save") return;
       if (type === "Delete" && !s.data) return;
 
       if (type === "Save") {
-        // 🔥 Logic for the Overwrite Check
+        // 🔥 OVERWRITE CHECK
         if (s.data) {
-          // The slot has content; show a confirmation modal
-          this.modal.visible = true;
-          this.modal.slotIndex = realIndex;
+          this.showModal(
+            "This slot already contains data. Do you want to overwrite it?",
+            `(Slot ${realIndex})`,
+            () => this._executeSave(realIndex)
+          );
         } else {
-          // Empty, proceed with saving
           this._executeSave(realIndex);
         }
-      } else if (type === "Load") this.loadSlot(realIndex);
-      else if (type === "Delete") this.deleteSlot(realIndex);
+      } else if (type === "Load") {
+        this.loadSlot(realIndex);
+      } else if (type === "Delete") {
+        // 🔥 DELETE CONFIRMATION
+        this.showModal(
+          "Are you sure you want to delete this saved data? This cannot be undone.",
+          `(Slot ${realIndex})`,
+          () => this._executeDelete(realIndex)
+        );
+      }
     }
   }
 
   // -----------------------------
-  // PRIVATE SAVE EXECUTION METHOD
+  // SHOW MODAL HELPER
+  // -----------------------------
+  showModal(message, subMessage, onConfirm) {
+    this.modal.message = message;
+    this.modal.subMessage = subMessage;
+    this.modal.onConfirm = onConfirm;
+    this.modal.visible = true;
+    this.modal.hoverYes = false;
+    this.modal.hoverNo = false;
+  }
+
+  // -----------------------------
+  // ACTION: SAVE
   // -----------------------------
   _executeSave(index) {
     const slotKey = "vn_save_slot_" + index;
-
     const screenshotBase64 = this.prePopupScreenshot;
     const timestamp = new Date().toLocaleString();
 
@@ -346,112 +409,27 @@ export default class SaveLoadPopup {
 
     localStorage.setItem(slotKey, JSON.stringify(saveData));
 
-    // Find the slot in the current array (this.slots) to update the display
     const currentSlot = this.slots.find((s) => s.id === index);
-
     if (currentSlot) {
-      // PRELOAD the image into the slot for rendering
       const img = new Image();
       img.src = screenshotBase64;
-
       currentSlot.date = timestamp;
       currentSlot.screenshot = img;
       currentSlot.data = saveData;
     } else {
       this.loadAllSlots();
     }
-
     console.log(`Saved slot ${index}`);
   }
 
   // -----------------------------
-  // SAVE SLOT (REPLACED WITH OVERWRITE LOGIC)
+  // ACTION: DELETE (Refactored to private)
   // -----------------------------
-  // saveSlot(index) { ... } // The previous saveSlot logic was moved to _executeSave and replaced with an overwrite check in onClick
-
-  saveSlot(index) {
-    // 🔥 Its content has been replaced. The logic is now in onClick.
-    // Made this just a wrapper in case another function calls it.
-    const currentSlot = this.slots.find((s) => s.id === index);
-    if (currentSlot && currentSlot.data) {
-      this.modal.visible = true;
-      this.modal.slotIndex = index;
-    } else {
-      this._executeSave(index);
-    }
-  }
-
-  // -----------------------------
-  // LOAD SLOT + AUTO CONTINUE GAME
-  // -----------------------------
-  async loadSlot(index) {
-    // Find the slot in the current array (this.slots)
-    const currentSlot = this.slots.find((s) => s.id === index);
-    const slot = currentSlot ? currentSlot.data : null;
-
-    if (!slot) {
-      console.warn("Slot empty!");
-      return;
-    }
-
-    console.log(`Loading slot ${index}`, slot);
-
-    // Restore game state + characters
-    this.core.gameState = structuredClone(slot.gameState);
-    this.core.characters = structuredClone(slot.characters);
-    this.core.currentCharacter =
-      this.core.characters.find((ch) => ch.default === true) ||
-      this.core.characters[0];
-
-    // -----------------------------------------
-    // 🔥 HARD-CODED RESUME LOGIC
-    // -----------------------------------------
-    const gs = this.core.gameState;
-
-    // ⚡ Load BACKGROUND if active
-    if (gs.currentBackground?.active) {
-      const { Background } = await import("../background.js");
-      const bg = new Background(this.core, gs.currentBackground.target);
-      await bg.load();
-      // Close popup first
-      this.close();
-      this.core.setActiveScene(bg);
-      return;
-    }
-
-    // ⚡ Load SCENE if active
-    if (gs.currentScene?.active) {
-      const { Scene } = await import("../scene.js");
-      const scene = new Scene(this.core, gs.currentScene.target);
-      await scene.load();
-
-      const savedIndex =
-        typeof gs.currentScene.dialogues === "number"
-          ? gs.currentScene.dialogues
-          : 0;
-
-      // restore line pointer
-      scene.currentLine = savedIndex;
-      scene.resumeIndex = savedIndex;
-      // Close popup first
-      this.core.setActiveScene(scene);
-      this.close();
-      return;
-    }
-
-    console.warn("⚠️ No scene or background active in save file!");
-  }
-
-  // -----------------------------
-  // DELETE
-  // -----------------------------
-  deleteSlot(index) {
+  _executeDelete(index) {
     const slotKey = "vn_save_slot_" + index;
     localStorage.removeItem(slotKey);
 
-    // Find the slot in the current array (this.slots)
     const currentSlot = this.slots.find((s) => s.id === index);
-
     if (currentSlot) {
       currentSlot.date = "";
       currentSlot.screenshot = null;
@@ -459,18 +437,62 @@ export default class SaveLoadPopup {
     } else {
       this.loadAllSlots();
     }
-
     console.log(`Deleted slot ${index}`);
   }
 
+  // Public Delete wrapper (triggers modal if called externally, though onClick handles UI)
+  deleteSlot(index) {
+    this.showModal("Delete this slot?", `(Slot ${index})`, () =>
+      this._executeDelete(index)
+    );
+  }
+
   // -----------------------------
-  // DRAW BUTTON
+  // LOAD LOGIC (Standard)
   // -----------------------------
+  async loadSlot(index) {
+    const currentSlot = this.slots.find((s) => s.id === index);
+    const slot = currentSlot ? currentSlot.data : null;
+
+    if (!slot) return;
+
+    this.core.gameState = structuredClone(slot.gameState);
+    this.core.characters = structuredClone(slot.characters);
+    this.core.currentCharacter =
+      this.core.characters.find((ch) => ch.default === true) ||
+      this.core.characters[0];
+
+    const gs = this.core.gameState;
+
+    if (gs.currentBackground?.active) {
+      const { Background } = await import("../background.js");
+      const bg = new Background(this.core, gs.currentBackground.target);
+      await bg.load();
+      this.close();
+      this.core.setActiveScene(bg);
+      return;
+    }
+
+    if (gs.currentScene?.active) {
+      const { Scene } = await import("../scene.js");
+      const scene = new Scene(this.core, gs.currentScene.target);
+      await scene.load();
+      const savedIndex =
+        typeof gs.currentScene.dialogues === "number"
+          ? gs.currentScene.dialogues
+          : 0;
+      scene.currentLine = savedIndex;
+      scene.resumeIndex = savedIndex;
+      this.core.setActiveScene(scene);
+      this.close();
+      return;
+    }
+  }
+
   drawButton(ctx, x, y, w, h, label, isHover, slot) {
     let disabled = false;
     if (this.mode === "save" && label === "Load") disabled = true;
     if (this.mode === "load" && label === "Save") disabled = true;
-
     if (label === "Delete" && !slot.data) disabled = true;
 
     ctx.fillStyle = disabled
@@ -478,7 +500,6 @@ export default class SaveLoadPopup {
       : isHover
       ? "rgba(255,255,255,0.35)"
       : "rgba(255,255,255,0.2)";
-
     ctx.fillRect(x, y, w, h);
 
     ctx.fillStyle = disabled ? "rgba(255,255,255,0.5)" : "#fff";
@@ -489,93 +510,102 @@ export default class SaveLoadPopup {
   }
 
   // -----------------------------
-  // DRAW MODAL
+  // DRAW MODAL (Dynamic)
   // -----------------------------
   drawModal(ctx, canvas) {
-    const modalW = canvas.width * 0.4;
-    const modalH = canvas.height * 0.2;
-    const modalX = (canvas.width - modalW) / 2;
-    const modalY = (canvas.height - modalH) / 2;
+    // 1. Get calculated layout
+    const layout = this.getModalLayout(ctx, canvas);
+    const {
+      modalX,
+      modalY,
+      modalW,
+      modalH,
+      textLines,
+      subMsgLines,
+      lineHeight,
+      btnX,
+      btnY,
+      btnW,
+      btnH,
+      padding,
+    } = layout;
 
-    // Dim Background
+    // 2. Dim Background
     ctx.fillStyle = "rgba(0,0,0,0.8)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Modal Box
+    // 3. Modal Box
     ctx.fillStyle = "rgba(20,20,20,1)";
     ctx.fillRect(modalX, modalY, modalW, modalH);
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 2;
     ctx.strokeRect(modalX, modalY, modalW, modalH);
 
-    // Text
-    ctx.fillStyle = "#fff";
-    ctx.font = `${modalH * 0.15}px Arial`;
+    // 4. Render Text Lines
     ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(
-      "Do you want to overwrite the data?",
-      modalX + modalW / 2,
-      modalY + modalH * 0.3
-    );
+    ctx.textBaseline = "top";
+    ctx.fillStyle = "#fff";
+    // Use the same font size used in calculation
+    const fontSize = canvas.height * 0.03;
+    ctx.font = `${fontSize}px Arial`;
 
-    const slotNum = this.modal.slotIndex;
-    const slotHeader = slotNum === 0 ? "Autosave" : "Slot " + slotNum;
+    let textCursorY = modalY + padding; // Start pushing text from top padding
 
-    ctx.font = `${modalH * 0.12}px Arial`;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
-    ctx.fillText(`(${slotHeader})`, modalX + modalW / 2, modalY + modalH * 0.5);
+    // Main Message
+    textLines.forEach((line) => {
+      ctx.fillText(line, modalX + modalW / 2, textCursorY);
+      textCursorY += lineHeight;
+    });
 
-    // Buttons
-    const btnW = modalW * 0.3;
-    const btnH = modalH * 0.25;
-    const btnY = modalY + modalH - btnH - modalH * 0.1;
+    // Sub Message (Grey)
+    if (subMsgLines.length > 0) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+      // Slightly smaller font for sub message? Optional, but keeps simple here
+      subMsgLines.forEach((line) => {
+        ctx.fillText(line, modalX + modalW / 2, textCursorY);
+        textCursorY += lineHeight;
+      });
+    }
 
-    const yesX = modalX + modalW * 0.1;
-    const noX = modalX + modalW - btnW - modalW * 0.1;
+    // 5. Buttons (Positions calculated in layout)
+    ctx.textBaseline = "middle"; // Reset for buttons
 
     // Yes Button
     ctx.fillStyle = this.modal.hoverYes
       ? "rgba(50,150,50,0.7)"
       : "rgba(50,150,50,0.5)";
-    ctx.fillRect(yesX, btnY, btnW, btnH);
+    ctx.fillRect(btnX.yes, btnY, btnW, btnH);
     ctx.fillStyle = "#fff";
     ctx.font = `${btnH * 0.6}px Arial`;
-    ctx.fillText("YES", yesX + btnW / 2, btnY + btnH / 2);
+    ctx.fillText("YES", btnX.yes + btnW / 2, btnY + btnH / 2);
 
     // No Button
     ctx.fillStyle = this.modal.hoverNo
       ? "rgba(150,50,50,0.7)"
       : "rgba(150,50,50,0.5)";
-    ctx.fillRect(noX, btnY, btnW, btnH);
+    ctx.fillRect(btnX.no, btnY, btnW, btnH);
     ctx.fillStyle = "#fff";
     ctx.font = `${btnH * 0.6}px Arial`;
-    ctx.fillText("NO", noX + btnW / 2, btnY + btnH / 2);
+    ctx.fillText("NO", btnX.no + btnW / 2, btnY + btnH / 2);
   }
 
-  // -----------------------------
-  // RENDER
-  // -----------------------------
   render(ctx) {
     if (!this.visible) return;
-
     const canvas = this.core.canvas;
 
-    // --- Draw Main Popup Content ---
     // BG
     ctx.fillStyle = "rgba(0,0,0,0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Standard Rendering (Pagination, Title, Grid) - same as before
     // PAGINATION
     const btnW = canvas.width * 0.12;
     const btnH = canvas.height * 0.06;
     const btnY = canvas.height * 0.93;
-
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = `${btnH * 0.45}px Arial`;
 
-    // Prev button
     const prevX = canvas.width * 0.3;
     const nextX = canvas.width * 0.58;
 
@@ -585,7 +615,6 @@ export default class SaveLoadPopup {
     ctx.fillStyle = "#fff";
     ctx.fillText("Prev", prevX + btnW / 2, btnY + btnH / 2);
 
-    // Next button
     ctx.fillStyle =
       this.currentPage < this.totalPages
         ? "rgba(255,255,255,0.2)"
@@ -594,7 +623,6 @@ export default class SaveLoadPopup {
     ctx.fillStyle = "#fff";
     ctx.fillText("Next", nextX + btnW / 2, btnY + btnH / 2);
 
-    // PAGE LABEL
     ctx.fillStyle = "#fff";
     ctx.fillText(
       `Page ${this.currentPage} / ${this.totalPages}`,
@@ -609,7 +637,7 @@ export default class SaveLoadPopup {
     const titleText = this.mode === "save" ? "Save Game" : "Load Game";
     ctx.fillText(titleText, canvas.width * 0.05, canvas.height * 0.07);
 
-    // CLOSE BUTTON
+    // CLOSE
     const closeSize = canvas.width * 0.03;
     const closeX = canvas.width * 0.88;
     const closeY = canvas.height * 0.05;
@@ -621,7 +649,7 @@ export default class SaveLoadPopup {
     ctx.font = `${closeSize * 0.7}px Arial`;
     ctx.fillText("X", closeX + closeSize / 2, closeY + closeSize / 2);
 
-    // CARD GRID
+    // GRID
     const cols = 5;
     const cardW = canvas.width * 0.16;
     const cardH = canvas.height * 0.33;
@@ -636,11 +664,9 @@ export default class SaveLoadPopup {
       const bx = startX + col * (cardW + gapX);
       const by = startY + row * (cardH + gapY);
 
-      // Card Background
       ctx.fillStyle = "rgba(255,255,255,0.08)";
       ctx.fillRect(bx, by, cardW, cardH);
 
-      // Header
       const headerH = cardH * 0.12;
       ctx.fillStyle = "#fff";
       ctx.font = `${headerH * 0.8}px Arial`;
@@ -648,7 +674,6 @@ export default class SaveLoadPopup {
       ctx.textBaseline = "top";
       ctx.fillText(slot.header, bx + cardW / 2, by + 8);
 
-      // Thumbnail
       const thumbH = cardH * 0.55;
       const thumbY = by + headerH + 8;
       ctx.fillStyle = "rgba(255,255,255,0.2)";
@@ -670,11 +695,9 @@ export default class SaveLoadPopup {
         ctx.fillText("Empty", bx + cardW / 2, thumbY + (thumbH - 12) / 2);
       }
 
-      // Buttons
       const btnH = cardH * 0.12;
       const btnBottomPadding = cardH * 0.03;
       const btnY = by + cardH - btnH - btnBottomPadding;
-
       const btnCount = 3;
       const btnSpacing = (cardW - 24) * 0.03;
       const totalBtnWidth = cardW - 24 - btnSpacing * (btnCount - 1);
@@ -687,7 +710,6 @@ export default class SaveLoadPopup {
         this.drawButton(ctx, btnX, btnY, btnW, btnH, label, isHover, slot);
       });
 
-      // Middle timestamp text
       const spaceTop = thumbY + thumbH - 12;
       const spaceBottom = btnY;
       const middleY = spaceTop + (spaceBottom - spaceTop) / 2;
@@ -698,7 +720,7 @@ export default class SaveLoadPopup {
       ctx.fillText(slot.date, bx + cardW / 2, middleY);
     });
 
-    // --- Draw Modal Overlay (if visible) ---
+    // 🔥 DRAW MODAL OVERLAY
     if (this.modal.visible) {
       this.drawModal(ctx, canvas);
     }
