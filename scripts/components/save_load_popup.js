@@ -29,6 +29,7 @@ export default class SaveLoadPopup {
     this.totalPages = Math.ceil(this.totalSlots / this.slotsPerPage);
     this.currentPage = 1;
 
+    // Placeholder initialization
     this.slots = Array(this.slotsPerPage)
       .fill(null)
       .map((_, i) => ({
@@ -36,7 +37,7 @@ export default class SaveLoadPopup {
         screenshot: null,
         header: "Slot " + i,
         date: "",
-        chapter: "", // New field for Episode Title
+        chapter: "",
         data: null,
       }));
 
@@ -77,11 +78,40 @@ export default class SaveLoadPopup {
   }
 
   // -----------------------------
+  // HELPER: FIND LATEST SAVE
+  // -----------------------------
+  getLatestSlotIndex() {
+    let latestIndex = -1;
+    let latestTime = 0;
+
+    for (let i = 0; i < this.totalSlots; i++) {
+      const saved = localStorage.getItem("vn_save_slot_" + i);
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          if (data.timestamp) {
+            const time = new Date(data.timestamp).getTime();
+            if (!isNaN(time) && time > latestTime) {
+              latestTime = time;
+              latestIndex = i;
+            }
+          }
+        } catch (e) {
+          console.warn("Error parsing slot", i);
+        }
+      }
+    }
+    return latestIndex;
+  }
+
+  // -----------------------------
   // LOAD SLOT DATA
   // -----------------------------
   loadAllSlots() {
     if (this.currentPage > this.totalPages) this.currentPage = this.totalPages;
     if (this.currentPage < 1) this.currentPage = 1;
+
+    const latestSlotIndex = this.getLatestSlotIndex();
 
     const start = (this.currentPage - 1) * this.slotsPerPage;
     const end = Math.min(start + this.slotsPerPage, this.totalSlots);
@@ -91,12 +121,18 @@ export default class SaveLoadPopup {
       .fill(null)
       .map((_, i) => {
         const slotIndex = start + i;
+        let headerText = slotIndex === 0 ? "Autosave" : "Slot " + slotIndex;
+
+        if (slotIndex === latestSlotIndex) {
+          headerText += " - Latest";
+        }
+
         const slot = {
           id: slotIndex,
           screenshot: null,
-          header: slotIndex === 0 ? "Autosave" : "Slot " + slotIndex,
+          header: headerText,
           date: "",
-          chapter: "", // Placeholder init
+          chapter: "",
           data: null,
         };
 
@@ -105,7 +141,6 @@ export default class SaveLoadPopup {
         if (saved) {
           const data = JSON.parse(saved);
           slot.date = data.timestamp || "";
-          // 🔥 Load Chapter Name (or default if missing in old saves)
           slot.chapter = data.chapter || "Chapter 1 - Episode 1";
           slot.data = data;
 
@@ -190,6 +225,7 @@ export default class SaveLoadPopup {
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
+    // Modal Logic
     if (this.modal.visible) {
       this.modal.hoverYes = false;
       this.modal.hoverNo = false;
@@ -214,8 +250,9 @@ export default class SaveLoadPopup {
       return;
     }
 
-    const closeSize = canvas.width * 0.03;
-    const closeX = canvas.width * 0.88;
+    // Close Button
+    const closeSize = canvas.width * 0.02;
+    const closeX = canvas.width * 0.91;
     const closeY = canvas.height * 0.05;
 
     if (
@@ -228,13 +265,20 @@ export default class SaveLoadPopup {
       return;
     }
 
+    // ----------------------------------------------------
+    // 🔥 CALCULATE GRID CENTERING (Layout Logic)
+    // ----------------------------------------------------
     const cols = 5;
     const cardW = canvas.width * 0.16;
     const cardH = canvas.height * 0.33;
     const gapX = canvas.width * 0.015;
     const gapY = canvas.height * 0.03;
-    const startX = canvas.width * 0.05;
-    const startY = canvas.height * 0.17;
+    const startY = canvas.height * 0.12;
+
+    // Calculate total width of the grid (cards + gaps)
+    const totalGridWidth = cols * cardW + (cols - 1) * gapX;
+    // Calculate START X to center the grid
+    const startX = (canvas.width - totalGridWidth) / 2;
 
     this.slots.forEach((slot, i) => {
       const col = i % cols;
@@ -245,7 +289,6 @@ export default class SaveLoadPopup {
       const btnH = cardH * 0.12;
       const btnBottomPadding = cardH * 0.03;
       const btnY = by + cardH - btnH - btnBottomPadding;
-
       const btnCount = 3;
       const btnSpacing = (cardW - 24) * 0.03;
       const totalBtnWidth = cardW - 24 - btnSpacing * (btnCount - 1);
@@ -257,6 +300,7 @@ export default class SaveLoadPopup {
         if (label === "Save" && this.mode === "load") return;
         if (label === "Load" && this.mode === "save") return;
         if (label === "Delete" && !slot.data) return;
+        if (label === "Load" && !slot.data) return;
 
         if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
           this.hoverButton = { slot: i, type: label };
@@ -276,6 +320,7 @@ export default class SaveLoadPopup {
     const y = e.clientY - rect.top;
     const canvas = this.core.canvas;
 
+    // Modal Click
     if (this.modal.visible) {
       if (this.modal.hoverYes && this.modal.onConfirm) {
         this.modal.onConfirm();
@@ -291,11 +336,18 @@ export default class SaveLoadPopup {
       return;
     }
 
+    // ----------------------------------------------------
+    // 🔥 CENTERED PAGINATION CLICK
+    // ----------------------------------------------------
     const btnW = canvas.width * 0.12;
     const btnH = canvas.height * 0.06;
-    const btnY = canvas.height * 0.93;
-    const prevX = canvas.width * 0.3;
-    const nextX = canvas.width * 0.58;
+    const btnY = canvas.height * 0.88;
+
+    const center = canvas.width * 0.5;
+    const distFromCenter = canvas.width * 0.12; // Distance from center to button edge
+
+    const prevX = center - distFromCenter - btnW;
+    const nextX = center + distFromCenter;
 
     if (x >= prevX && x <= prevX + btnW && y >= btnY && y <= btnY + btnH) {
       if (this.currentPage > 1) {
@@ -321,6 +373,7 @@ export default class SaveLoadPopup {
       if (type === "Save" && this.mode === "load") return;
       if (type === "Load" && this.mode === "save") return;
       if (type === "Delete" && !s.data) return;
+      if (type === "Load" && !s.data) return;
 
       if (type === "Save") {
         if (s.data) {
@@ -357,46 +410,25 @@ export default class SaveLoadPopup {
     const slotKey = "vn_save_slot_" + index;
     const screenshotBase64 = this.prePopupScreenshot;
     const timestamp = new Date().toLocaleString();
-    // 🔥 Placeholder for now
     const chapter = "Chapter 1 - Episode 1";
 
     const saveData = {
       timestamp,
-      chapter, // Save the chapter
+      chapter,
       screenshot: screenshotBase64,
       gameState: structuredClone(this.core.gameState),
       characters: structuredClone(this.core.characters),
     };
 
     localStorage.setItem(slotKey, JSON.stringify(saveData));
-
-    const currentSlot = this.slots.find((s) => s.id === index);
-    if (currentSlot) {
-      const img = new Image();
-      img.src = screenshotBase64;
-      currentSlot.date = timestamp;
-      currentSlot.chapter = chapter; // Update local view
-      currentSlot.screenshot = img;
-      currentSlot.data = saveData;
-    } else {
-      this.loadAllSlots();
-    }
+    this.loadAllSlots();
     console.log(`Saved slot ${index}`);
   }
 
   _executeDelete(index) {
     const slotKey = "vn_save_slot_" + index;
     localStorage.removeItem(slotKey);
-
-    const currentSlot = this.slots.find((s) => s.id === index);
-    if (currentSlot) {
-      currentSlot.date = "";
-      currentSlot.chapter = "";
-      currentSlot.screenshot = null;
-      currentSlot.data = null;
-    } else {
-      this.loadAllSlots();
-    }
+    this.loadAllSlots();
     console.log(`Deleted slot ${index}`);
   }
 
@@ -439,8 +471,8 @@ export default class SaveLoadPopup {
           : 0;
       scene.currentLine = savedIndex;
       scene.resumeIndex = savedIndex;
-      this.core.setActiveScene(scene);
       this.close();
+      this.core.setActiveScene(scene);
       return;
     }
   }
@@ -450,6 +482,7 @@ export default class SaveLoadPopup {
     if (this.mode === "save" && label === "Load") disabled = true;
     if (this.mode === "load" && label === "Save") disabled = true;
     if (label === "Delete" && !slot.data) disabled = true;
+    if (label === "Load" && !slot.data) disabled = true;
 
     ctx.fillStyle = disabled
       ? "rgba(255,255,255,0.08)"
@@ -537,16 +570,22 @@ export default class SaveLoadPopup {
     ctx.fillStyle = "rgba(0,0,0,0.9)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // PAGINATION
+    // ----------------------------------------------------
+    // 🔥 CENTERED PAGINATION RENDER
+    // ----------------------------------------------------
     const btnW = canvas.width * 0.12;
     const btnH = canvas.height * 0.06;
-    const btnY = canvas.height * 0.93;
+    const btnY = canvas.height * 0.88;
+
+    const center = canvas.width * 0.5;
+    const distFromCenter = canvas.width * 0.12; // Distance from center to button edge
+
+    const prevX = center - distFromCenter - btnW;
+    const nextX = center + distFromCenter;
+
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `${btnH * 0.45}px Arial`;
-
-    const prevX = canvas.width * 0.3;
-    const nextX = canvas.width * 0.58;
+    ctx.font = `${btnH * 0.35}px Arial`;
 
     ctx.fillStyle =
       this.currentPage > 1 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.05)";
@@ -571,14 +610,14 @@ export default class SaveLoadPopup {
 
     // TITLE
     ctx.fillStyle = "#fff";
-    ctx.font = `${canvas.height * 0.045}px Arial`;
+    ctx.font = `${canvas.height * 0.035}px Arial`;
     ctx.textAlign = "left";
     const titleText = this.mode === "save" ? "Save Game" : "Load Game";
-    ctx.fillText(titleText, canvas.width * 0.05, canvas.height * 0.07);
+    ctx.fillText(titleText, canvas.width * 0.07, canvas.height * 0.07);
 
     // CLOSE
-    const closeSize = canvas.width * 0.03;
-    const closeX = canvas.width * 0.88;
+    const closeSize = canvas.width * 0.02;
+    const closeX = canvas.width * 0.91;
     const closeY = canvas.height * 0.05;
     ctx.fillStyle = this.closeHover ? "red" : "white";
     ctx.fillRect(closeX, closeY, closeSize, closeSize);
@@ -588,14 +627,19 @@ export default class SaveLoadPopup {
     ctx.font = `${closeSize * 0.7}px Arial`;
     ctx.fillText("X", closeX + closeSize / 2, closeY + closeSize / 2);
 
-    // GRID
+    // ----------------------------------------------------
+    // 🔥 CALCULATE GRID CENTERING (Render Logic)
+    // ----------------------------------------------------
     const cols = 5;
     const cardW = canvas.width * 0.16;
     const cardH = canvas.height * 0.33;
     const gapX = canvas.width * 0.015;
     const gapY = canvas.height * 0.03;
-    const startX = canvas.width * 0.05;
-    const startY = canvas.height * 0.17;
+    const startY = canvas.height * 0.12;
+
+    // Calculate total width and centered startX
+    const totalGridWidth = cols * cardW + (cols - 1) * gapX;
+    const startX = (canvas.width - totalGridWidth) / 2;
 
     this.slots.forEach((slot, i) => {
       const col = i % cols;
@@ -610,12 +654,12 @@ export default class SaveLoadPopup {
       // Header
       const headerH = cardH * 0.12;
       ctx.fillStyle = "#fff";
-      ctx.font = `${headerH * 0.8}px Arial`;
+      ctx.font = `${headerH * 0.6}px Arial`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(slot.header, bx + cardW / 2, by + 8);
+      ctx.fillText(slot.header, bx + cardW / 2, by + 10);
 
-      // Thumbnail (Reduced height slightly from 0.55 to 0.48 to fit two text lines)
+      // Thumbnail
       const thumbH = cardH * 0.48;
       const thumbY = by + headerH + 8;
       ctx.fillStyle = "rgba(255,255,255,0.2)";
@@ -653,22 +697,21 @@ export default class SaveLoadPopup {
         this.drawButton(ctx, btnX, btnY, btnW, btnH, label, isHover, slot);
       });
 
-      // 🔥 DRAW TWO LINES OF TEXT (Details Area)
+      // Details
       if (slot.data) {
-        // Calculate available space between thumbnail and buttons
-        const detailsTop = thumbY + thumbH - 8; // slightly up
+        const detailsTop = thumbY + thumbH - 8;
         const detailsBottom = btnY;
         const detailsH = detailsBottom - detailsTop;
         const centerY = detailsTop + detailsH / 2;
 
-        // 1. Date (Smaller, Grey)
+        // 1. Date
         ctx.fillStyle = "#aaa";
         ctx.font = `${btnH * 0.45}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(slot.date, bx + cardW / 2, centerY - detailsH * 0.15);
 
-        // 2. Chapter/Episode (Bigger, White)
+        // 2. Chapter
         ctx.fillStyle = "#fff";
         ctx.font = `${btnH * 0.45}px Arial`;
         ctx.fillText(slot.chapter, bx + cardW / 2, centerY + detailsH * 0.2);
