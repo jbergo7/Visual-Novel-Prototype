@@ -7,27 +7,18 @@ export default class SaveLoadPopup {
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
-    // A. I-declare lang ang total slots
     this.totalSlots = 30;
-
-    // B. Layout-based calculation: 2 rows * 5 columns
-    const SLOTS_ROWS = 2;
-    const SLOTS_COLS = 5;
-
-    // Slots per page ay derived mula sa layout
-    this.slotsPerPage = SLOTS_ROWS * SLOTS_COLS; // 10
-    // Total pages ay derived mula sa total slots at slots per page
-    this.totalPages = Math.ceil(this.totalSlots / this.slotsPerPage); // 30 / 10 = 3
+    this.slotsPerPage = 10;
+    this.totalPages = 3;
     this.currentPage = 1;
 
-    // C. Ang this.slots ay dapat nakadepende sa slotsPerPage, hindi hardcoded sa 10
-    // Magse-set ito ng placeholder para sa kasalukuyang page (10 slots)
-    this.slots = Array(this.slotsPerPage)
+    // 10 save slots placeholder
+    this.slots = Array(10)
       .fill(null)
       .map((_, i) => ({
-        id: i, // temporary id, will be updated in loadAllSlots
+        id: i,
         screenshot: null,
-        header: "Slot " + i,
+        header: i === 0 ? "Autosave" : "Slot " + i,
         date: "",
         data: null,
       }));
@@ -80,18 +71,10 @@ export default class SaveLoadPopup {
   // LOAD SLOT DATA FROM LOCALSTORAGE
   // -----------------------------
   loadAllSlots() {
-    // Tiyakin na hindi hihigit sa totalPages
-    if (this.currentPage > this.totalPages) this.currentPage = this.totalPages;
-    if (this.currentPage < 1) this.currentPage = 1;
-
     const start = (this.currentPage - 1) * this.slotsPerPage;
-    // Ang end ay maaaring mas kaunti sa slotsPerPage sa huling page
-    const end = Math.min(start + this.slotsPerPage, this.totalSlots);
-    // Ang bilang ng slots na ipapakita sa page na ito
-    const slotsToRender = end - start;
+    const end = start + this.slotsPerPage;
 
-    // Gumamit ng slotsToRender (hindi slotsPerPage) upang tama ang haba ng array sa huling page.
-    this.slots = Array(slotsToRender)
+    this.slots = Array(10)
       .fill(null)
       .map((_, i) => {
         const slotIndex = start + i;
@@ -99,7 +82,6 @@ export default class SaveLoadPopup {
         const slot = {
           id: slotIndex,
           screenshot: null,
-          // Header: Autosave kung slot 0, kung hindi ay Slot X
           header: slotIndex === 0 ? "Autosave" : "Slot " + slotIndex,
           date: "",
           data: null,
@@ -270,23 +252,13 @@ export default class SaveLoadPopup {
 
     localStorage.setItem(slotKey, JSON.stringify(saveData));
 
-    // Hanapin ang slot sa kasalukuyang array (this.slots) upang ma-update ang display
-    const currentSlot = this.slots.find((s) => s.id === index);
+    // PRELOAD the image into the slot for rendering
+    const img = new Image();
+    img.src = screenshotBase64;
 
-    if (currentSlot) {
-      // PRELOAD the image into the slot for rendering
-      const img = new Image();
-      img.src = screenshotBase64;
-
-      currentSlot.date = timestamp;
-      currentSlot.screenshot = img;
-      currentSlot.data = saveData;
-    } else {
-      // Ito ay nangyayari lamang kung nag-save sa slot na wala sa kasalukuyang page,
-      // ngunit sa lohika ng click/hover, dapat nasa current page ang slot na i-se-save.
-      // Kaya dapat hindi ito kailanganin, pero panigurado, i-reload na lang.
-      this.loadAllSlots();
-    }
+    this.slots[index].date = timestamp;
+    this.slots[index].screenshot = img;
+    this.slots[index].data = saveData;
 
     console.log(`Saved slot ${index}`);
   }
@@ -295,9 +267,7 @@ export default class SaveLoadPopup {
   // LOAD SLOT + AUTO CONTINUE GAME
   // -----------------------------
   async loadSlot(index) {
-    // Hanapin ang slot sa kasalukuyang array (this.slots)
-    const currentSlot = this.slots.find((s) => s.id === index);
-    const slot = currentSlot ? currentSlot.data : null;
+    const slot = this.slots[index].data;
 
     if (!slot) {
       console.warn("Slot empty!");
@@ -359,16 +329,9 @@ export default class SaveLoadPopup {
     const slotKey = "vn_save_slot_" + index;
     localStorage.removeItem(slotKey);
 
-    // Hanapin ang slot sa kasalukuyang array (this.slots)
-    const currentSlot = this.slots.find((s) => s.id === index);
-
-    if (currentSlot) {
-      currentSlot.date = "";
-      currentSlot.screenshot = null;
-      currentSlot.data = null;
-    } else {
-      this.loadAllSlots();
-    }
+    this.slots[index].date = "";
+    this.slots[index].screenshot = null;
+    this.slots[index].data = null;
 
     console.log(`Deleted slot ${index}`);
   }
