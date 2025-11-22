@@ -11,7 +11,6 @@ export class GameCore {
     this.activeScene = null;
     this.hasRuntimeDataCache = false;
 
-    //this.inputLocked = false;
     this.saveloadHandler = new SaveLoad();
 
     // Runtime data
@@ -27,9 +26,6 @@ export class GameCore {
 
     //Global click handler
     this.canvas.addEventListener("click", (e) => {
-      console.log("CLICK CLICK");
-      //if (this.inputLocked) return;
-      if (this.saveLoadPopup?.visible) return;
       if (this.activeScene?.handleGlobalClick) {
         this.activeScene.handleGlobalClick(e);
       }

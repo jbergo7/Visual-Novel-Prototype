@@ -60,21 +60,14 @@ export class Scene {
 
     this.unload();
 
-    this.ignoreClickAfterPopup = false;
-
     // click handler
     this.clickHandler = (e) => {
       // ✅ Check if SaveLoadPopup is open
       if (this.core.saveLoadPopup?.visible) {
-        this.ignoreClickAfterPopup = true;
+        console.log("return");
         return;
       }
       if (this.menuPopup.visible) return;
-
-      if (this.ignoreClickAfterPopup) {
-        this.ignoreClickAfterPopup = false;
-        return; // ignore first click after closing popup
-      }
 
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -231,6 +224,7 @@ export class Scene {
 
   async nextDialogue() {
     if (this.isLoading) return;
+    if (this.core.saveLoadPopup?.visible) return;
     if (this.choicesBox.choices.length > 0) return;
 
     this.currentLine++;

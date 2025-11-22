@@ -76,10 +76,9 @@ export class DialogueChoices {
 
   handleClick(e) {
     if (this.choices.length === 0) return;
-
     // Block click if menu or SaveLoadPopup visible
     if (this.core.menuPopup.visible || this.core.saveLoadPopup?.visible) {
-      e.stopImmediatePropagation(); // 🔥 prevent Scene.js click
+      e.stopImmediatePropagation(); // 🔥 Siguraduhin na hihinto agad
       e.preventDefault();
       return;
     }
