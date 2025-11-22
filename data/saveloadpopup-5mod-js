@@ -663,7 +663,7 @@ export default class SaveLoadPopup {
 
         // 1. Date (Smaller, Grey)
         ctx.fillStyle = "#aaa";
-        ctx.font = `${btnH * 0.45}px Arial`;
+        ctx.font = `${btnH * 0.35}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(slot.date, bx + cardW / 2, centerY - detailsH * 0.15);
@@ -671,7 +671,7 @@ export default class SaveLoadPopup {
         // 2. Chapter/Episode (Bigger, White)
         ctx.fillStyle = "#fff";
         ctx.font = `${btnH * 0.45}px Arial`;
-        ctx.fillText(slot.chapter, bx + cardW / 2, centerY + detailsH * 0.2);
+        ctx.fillText(slot.chapter, bx + cardW / 2, centerY + detailsH * 0.25);
       }
     });
 
