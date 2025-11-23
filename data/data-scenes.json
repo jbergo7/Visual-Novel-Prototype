@@ -5,10 +5,16 @@
       {
         "speaker": "Narrator",
         "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento.",
-        "sprite": {
-          "character": "Andrea",
-          "pose": "neutral_pos0_left"
-        }
+        "sprite": [
+          {
+            "character": "Andrea",
+            "pose": "neutral_pos0_left"
+          },
+          {
+            "character": "Jayson",
+            "pose": "neutral_pos0_right"
+          }
+        ]
       },
       { "background": "kitchen" },
       {

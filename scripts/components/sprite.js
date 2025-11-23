@@ -1,8 +1,13 @@
-export class Sprite {
+// components/sprite.js
+
+// =====================================================
+// 1. INTERNAL CLASS: Handles logic for ONE character
+//    (Dito inilipat ang logic mo dati)
+// =====================================================
+class SpriteEntity {
   constructor(core) {
     this.core = core;
     this.image = null;
-    this.visible = false;
 
     // Destination (Screen)
     this.x = 0;
@@ -20,73 +25,49 @@ export class Sprite {
     this.DESIGN_HEIGHT = 720;
   }
 
-  async update(data) {
-    // 1. Clear if null
-    if (!data) {
-      this.clear();
-      return;
-    }
-
+  async load(data) {
     let spriteData = data;
 
     // ---------------------------------------------------------
-    // 🔥 DATA LOOKUP LOGIC
+    // 🔥 DATA LOOKUP LOGIC (Pareho ng dati mong code)
     // ---------------------------------------------------------
-    // Kung may "character" at "pose", kunin ang data sa Cache
     if (data.character && data.pose) {
       const cache = this.core.dataCache?.characterSprites;
-
       if (cache && cache[data.character] && cache[data.character][data.pose]) {
         const baseData = cache[data.character][data.pose];
-
-        // MERGE: Base Data (Cache) + Overrides (Scene Data)
-        // Example: Cache has image/sx/sy. Scene has x/y overrides.
+        // Merge: Cache Base + Scene Overrides
         spriteData = { ...baseData, ...data };
       } else {
-        console.warn(
-          `⚠️ Sprite not found in cache: ${data.character} -> ${data.pose}`
-        );
-        // Fallback: Use provided data as is, baka direct link pa rin
+        console.warn(`⚠️ Sprite not found: ${data.character} -> ${data.pose}`);
       }
     }
 
     // ---------------------------------------------------------
-    // 2. LOAD IMAGE
+    // ASSIGN PROPERTIES
     // ---------------------------------------------------------
-    // Check if image source changed to avoid reloading same image
-    if (spriteData.image) {
-      if (!this.image || this.image.getAttribute("src") !== spriteData.image) {
-        const img = new Image();
-        img.src = spriteData.image;
-        await new Promise((resolve) => (img.onload = resolve));
-        this.image = img;
-      }
-      this.visible = true;
-    }
-
-    // ---------------------------------------------------------
-    // 3. ASSIGN PROPERTIES
-    // ---------------------------------------------------------
-    // Destination
     this.x = spriteData.x !== undefined ? spriteData.x : 0;
     this.y = spriteData.y !== undefined ? spriteData.y : 0;
     this.width = spriteData.width !== undefined ? spriteData.width : 0;
     this.height = spriteData.height !== undefined ? spriteData.height : 0;
 
-    // Source (Crop)
     this.sx = spriteData.sx !== undefined ? spriteData.sx : 0;
     this.sy = spriteData.sy !== undefined ? spriteData.sy : 0;
     this.sWidth = spriteData.sWidth !== undefined ? spriteData.sWidth : null;
     this.sHeight = spriteData.sHeight !== undefined ? spriteData.sHeight : null;
-  }
 
-  clear() {
-    this.visible = false;
-    this.image = null;
+    // ---------------------------------------------------------
+    // LOAD IMAGE
+    // ---------------------------------------------------------
+    if (spriteData.image) {
+      const img = new Image();
+      img.src = spriteData.image;
+      await new Promise((resolve) => (img.onload = resolve));
+      this.image = img;
+    }
   }
 
   render(ctx) {
-    if (!this.visible || !this.image) return;
+    if (!this.image) return;
 
     const canvas = this.core.canvas;
     const scaleFactor = canvas.height / this.DESIGN_HEIGHT;
@@ -103,7 +84,6 @@ export class Sprite {
     const drawX = this.x * scaleFactor;
     const drawY = this.y * scaleFactor;
 
-    // Use specific width/height if provided, otherwise use source size
     const finalW = this.width !== 0 ? this.width : finalSWidth;
     const finalH = this.height !== 0 ? this.height : finalSHeight;
 
@@ -122,5 +102,64 @@ export class Sprite {
       drawW,
       drawH
     );
+  }
+}
+
+// =====================================================
+// 2. MAIN CLASS: Manages Multiple Sprites
+//    (Ito ang tinatawag ng Scene.js)
+// =====================================================
+export class Sprite {
+  constructor(core) {
+    this.core = core;
+    this.entities = []; // Array of active SpriteEntity objects
+    this.visible = false;
+  }
+
+  /**
+   * Updates the sprite list.
+   * @param {Object|Array} data - Can be a single sprite object OR an array of objects.
+   */
+  async update(data) {
+    // 1. Clear if null
+    if (!data) {
+      this.clear();
+      return;
+    }
+
+    // 2. Normalize input to always be an Array
+    // Kung object lang (single sprite), gagawin nating array na may isang laman.
+    const dataList = Array.isArray(data) ? data : [data];
+
+    // 3. Create new entities list
+    const newEntities = [];
+
+    // 4. Load all sprites in parallel (sabay-sabay mag-load)
+    const promises = dataList.map(async (item) => {
+      const entity = new SpriteEntity(this.core);
+      await entity.load(item);
+      newEntities.push(entity);
+    });
+
+    // Hintayin matapos lahat ng loading
+    await Promise.all(promises);
+
+    // 5. Replace the old list with the new one
+    this.entities = newEntities;
+    this.visible = true;
+  }
+
+  clear() {
+    this.entities = [];
+    this.visible = false;
+  }
+
+  render(ctx) {
+    if (!this.visible || this.entities.length === 0) return;
+
+    // Loop through all entities and render them
+    this.entities.forEach((entity) => {
+      entity.render(ctx);
+    });
   }
 }

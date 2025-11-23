@@ -132,7 +132,14 @@ export class Scene {
 
     const current = this.dialogues[this.currentLine];
     if (current?.choices) this.choicesBox.setChoices(current.choices);
-    if (current?.sprite) await this.sprite.update(current.sprite);
+    //if (current?.sprite) await this.sprite.update(current.sprite);
+
+    // 👇 Restore Sprite/s
+    if (current?.sprites) {
+      await this.sprite.update(current.sprites);
+    } else if (current?.sprite) {
+      await this.sprite.update(current.sprite);
+    }
 
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
   }
@@ -173,7 +180,11 @@ export class Scene {
     }
 
     // SPRITE
-    if (obj.sprite) {
+    if (obj.sprites) {
+      // Case A: Multiple sprites (Array)
+      await this.sprite.update(obj.sprites);
+    } else if (obj.sprite) {
+      // Case B: Single sprite (Object) - Legacy support
       await this.sprite.update(obj.sprite);
     } else {
       // Optional: Retain previous sprite or clear.
