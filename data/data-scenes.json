@@ -7,10 +7,10 @@
         "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento.",
         "sprite": {
           "image": "assets/sprites/characters/andrea/andrea_neutral.png",
-          "x": 0.35,
-          "y": 0.2,
-          "width": 0.3,
-          "height": 0.8
+          "x": 100,
+          "y": 100,
+          "width": 300,
+          "height": 639
         }
       },
       { "background": "kitchen" },
@@ -19,21 +19,35 @@
         "text": "Matapos magtungo sa kitchen ay agad siyang pumunta sa banyo.",
         "sprite": {
           "image": "assets/sprites/characters/andrea/andrea_neutral.png",
-          "x": 0.35,
-          "y": 0.2,
-          "width": 0.3,
-          "height": 0.8
+          "x": 100,
+          "y": 100,
+          "width": 300,
+          "height": 639
         },
         "autosave": true
       },
       { "background": "restroom", "transition": "fade", "autosave": true },
       {
         "speaker": "Narrator",
-        "text": "Tahimik ang paligid, at ang simoy ng hangin ay malamig."
+        "text": "Tahimik ang paligid, at ang simoy ng hangin ay malamig.",
+        "sprite": {
+          "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+          "x": 100,
+          "y": 100,
+          "width": 300,
+          "height": 639
+        }
       },
       {
         "speaker": "Narrator",
-        "text": "Ang bill weekly ng rent ay 50 pesos. Tatangapin ba ni Andrea o mag hanap siya ng mas mura?"
+        "text": "Ang bill weekly ng rent ay 50 pesos. Tatangapin ba ni Andrea o mag hanap siya ng mas mura?",
+        "sprite": {
+          "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+          "x": 100,
+          "y": 100,
+          "width": 300,
+          "height": 639
+        }
       },
       {
         "choices": [
