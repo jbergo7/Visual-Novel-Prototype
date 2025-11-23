@@ -4,52 +4,80 @@ export class Sprite {
     this.image = null;
     this.visible = false;
 
-    // Destination (Screen Position & Size)
+    // Destination (Screen)
     this.x = 0;
     this.y = 0;
     this.width = 0;
     this.height = 0;
 
-    // Source (Crop Position & Size)
+    // Source (Crop)
     this.sx = 0;
     this.sy = 0;
     this.sWidth = 0;
     this.sHeight = 0;
 
-    // 🔥 DESIGN RESOLUTION (Kung anong resolution ka nag-design sa Photoshop/JSON)
-    // Halimbawa: 720p (1280x720) or 1080p (1920x1080).
-    // Eto ang magiging basehan ng scaling.
+    // Design Resolution
     this.DESIGN_HEIGHT = 720;
   }
 
   async update(data) {
-    if (data === null) {
+    // 1. Clear if null
+    if (!data) {
       this.clear();
       return;
     }
 
-    // 1. Load Image
-    if (data.image) {
-      const img = new Image();
-      img.src = data.image;
-      await new Promise((resolve) => (img.onload = resolve));
-      this.image = img;
+    let spriteData = data;
+
+    // ---------------------------------------------------------
+    // 🔥 DATA LOOKUP LOGIC
+    // ---------------------------------------------------------
+    // Kung may "character" at "pose", kunin ang data sa Cache
+    if (data.character && data.pose) {
+      const cache = this.core.dataCache?.characterSprites;
+
+      if (cache && cache[data.character] && cache[data.character][data.pose]) {
+        const baseData = cache[data.character][data.pose];
+
+        // MERGE: Base Data (Cache) + Overrides (Scene Data)
+        // Example: Cache has image/sx/sy. Scene has x/y overrides.
+        spriteData = { ...baseData, ...data };
+      } else {
+        console.warn(
+          `⚠️ Sprite not found in cache: ${data.character} -> ${data.pose}`
+        );
+        // Fallback: Use provided data as is, baka direct link pa rin
+      }
+    }
+
+    // ---------------------------------------------------------
+    // 2. LOAD IMAGE
+    // ---------------------------------------------------------
+    // Check if image source changed to avoid reloading same image
+    if (spriteData.image) {
+      if (!this.image || this.image.getAttribute("src") !== spriteData.image) {
+        const img = new Image();
+        img.src = spriteData.image;
+        await new Promise((resolve) => (img.onload = resolve));
+        this.image = img;
+      }
       this.visible = true;
     }
 
-    // 2. Destination Data (Screen)
-    this.x = data.x !== undefined ? data.x : 0;
-    this.y = data.y !== undefined ? data.y : 0;
-    this.width = data.width !== undefined ? data.width : 0;
-    this.height = data.height !== undefined ? data.height : 0;
+    // ---------------------------------------------------------
+    // 3. ASSIGN PROPERTIES
+    // ---------------------------------------------------------
+    // Destination
+    this.x = spriteData.x !== undefined ? spriteData.x : 0;
+    this.y = spriteData.y !== undefined ? spriteData.y : 0;
+    this.width = spriteData.width !== undefined ? spriteData.width : 0;
+    this.height = spriteData.height !== undefined ? spriteData.height : 0;
 
-    // 3. Source Data (Crop)
-    // Kung walang binigay na sx/sy, default sa 0 (Top-Left)
-    // Kung walang sWidth/sHeight, kukunin natin ang buong size ng image mamaya sa render.
-    this.sx = data.sx !== undefined ? data.sx : 0;
-    this.sy = data.sy !== undefined ? data.sy : 0;
-    this.sWidth = data.sWidth !== undefined ? data.sWidth : null;
-    this.sHeight = data.sHeight !== undefined ? data.sHeight : null;
+    // Source (Crop)
+    this.sx = spriteData.sx !== undefined ? spriteData.sx : 0;
+    this.sy = spriteData.sy !== undefined ? spriteData.sy : 0;
+    this.sWidth = spriteData.sWidth !== undefined ? spriteData.sWidth : null;
+    this.sHeight = spriteData.sHeight !== undefined ? spriteData.sHeight : null;
   }
 
   clear() {
@@ -61,14 +89,9 @@ export class Sprite {
     if (!this.visible || !this.image) return;
 
     const canvas = this.core.canvas;
-
-    // 🔥 RESPONSIVE SCALING LOGIC
-    // Kinukuha natin ang ratio ng current Canvas Height vs Design Height.
-    // Example: Kung Canvas ay 1080 at Design ay 720, scaleFactor = 1.5
     const scaleFactor = canvas.height / this.DESIGN_HEIGHT;
 
-    // --- A. CALCULATE SOURCE (CROP) ---
-    // Kung walang sWidth na binigay, gamitin ang buong image width
+    // A. Source Rect
     const finalSx = this.sx;
     const finalSy = this.sy;
     const finalSWidth =
@@ -76,28 +99,28 @@ export class Sprite {
     const finalSHeight =
       this.sHeight !== null ? this.sHeight : this.image.naturalHeight;
 
-    // --- B. CALCULATE DESTINATION (SCREEN) ---
-    // I-multiply ang JSON values sa scaleFactor para responsive
+    // B. Destination Rect (Scaled)
     const drawX = this.x * scaleFactor;
     const drawY = this.y * scaleFactor;
 
-    // Kung may defined width/height sa JSON, i-scale yun.
-    // Kung wala, gamitin ang sWidth/sHeight at i-scale (Actual Size preservation)
-    const drawW = (this.width !== 0 ? this.width : finalSWidth) * scaleFactor;
-    const drawH =
-      (this.height !== 0 ? this.height : finalSHeight) * scaleFactor;
+    // Use specific width/height if provided, otherwise use source size
+    const finalW = this.width !== 0 ? this.width : finalSWidth;
+    const finalH = this.height !== 0 ? this.height : finalSHeight;
 
-    // --- C. DRAW (9 Arguments) ---
+    const drawW = finalW * scaleFactor;
+    const drawH = finalH * scaleFactor;
+
+    // C. Draw
     ctx.drawImage(
       this.image,
       finalSx,
       finalSy,
       finalSWidth,
-      finalSHeight, // Source (Crop)
+      finalSHeight,
       drawX,
       drawY,
       drawW,
-      drawH // Destination (Screen)
+      drawH
     );
   }
 }
