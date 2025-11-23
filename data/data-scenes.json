@@ -6,11 +6,15 @@
         "speaker": "Narrator",
         "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento.",
         "sprite": {
-          "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+          "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
+          "sx": 5,
+          "sy": 7,
+          "sWidth": 445,
+          "sHeight": 973,
           "x": 100,
           "y": 100,
-          "width": 300,
-          "height": 639
+          "width": 445,
+          "height": 973
         }
       },
       { "background": "kitchen" },
@@ -18,11 +22,15 @@
         "speaker": "Narrator",
         "text": "Matapos magtungo sa kitchen ay agad siyang pumunta sa banyo.",
         "sprite": {
-          "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+          "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
+          "sx": 474,
+          "sy": 7,
+          "sWidth": 445,
+          "sHeight": 973,
           "x": 100,
           "y": 100,
-          "width": 300,
-          "height": 639
+          "width": 445,
+          "height": 973
         },
         "autosave": true
       },
