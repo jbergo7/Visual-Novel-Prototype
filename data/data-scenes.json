@@ -4,12 +4,26 @@
     "dialogues": [
       {
         "speaker": "Narrator",
-        "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento."
+        "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento.",
+        "sprite": {
+          "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+          "x": 0.35,
+          "y": 0.2,
+          "width": 0.3,
+          "height": 0.8
+        }
       },
       { "background": "kitchen" },
       {
         "speaker": "Narrator",
         "text": "Matapos magtungo sa kitchen ay agad siyang pumunta sa banyo.",
+        "sprite": {
+          "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+          "x": 0.35,
+          "y": 0.2,
+          "width": 0.3,
+          "height": 0.8
+        },
         "autosave": true
       },
       { "background": "restroom", "transition": "fade", "autosave": true },

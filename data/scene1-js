@@ -4,7 +4,6 @@ import { PopupNotif } from "./components/popup_notif.js";
 import { StatsManager } from "./stats_manager.js";
 import MenuButton from "./components/menu_button.js";
 import MenuPopup from "./components/menu_popup.js";
-// 👇 IMPORT NEW COMPONENT
 import { Sprite } from "./components/sprite.js";
 
 export class Scene {
@@ -18,15 +17,13 @@ export class Scene {
 
     this.appliedStats = {};
     this.appliedChoiceStats = {};
+    // NEW: track original state before entering a choice line
     this.preChoiceState = {};
 
     this.dialogueBox = new DialogueBox(core);
     this.choicesBox = new DialogueChoices(core, (choice) =>
       this.handleChoice(choice)
     );
-
-    // 👇 INITIALIZE SPRITE
-    this.sprite = new Sprite(core);
 
     if (!core.popupNotif) core.popupNotif = new PopupNotif(core);
     this.popupNotif = core.popupNotif;
@@ -66,7 +63,11 @@ export class Scene {
 
     // click handler
     this.clickHandler = (e) => {
-      if (this.core.saveLoadPopup?.visible) return;
+      // ✅ Check if SaveLoadPopup is open
+      if (this.core.saveLoadPopup?.visible) {
+        console.log("return");
+        return;
+      }
       if (this.menuPopup.visible) return;
 
       const rect = this.core.canvas.getBoundingClientRect();
@@ -91,7 +92,9 @@ export class Scene {
     // right-click = previous
     this.backHandler = (e) => {
       if (this.menuPopup.visible) return;
+      // ✅ Check if SaveLoadPopup is open
       if (this.core.saveLoadPopup?.visible) return;
+
       e.preventDefault();
       this.prevDialogue();
     };
@@ -101,7 +104,7 @@ export class Scene {
     const saved = this.core.gameState?.currentScene;
     if (saved?.target === this.sceneId && typeof saved.dialogues === "number") {
       this.currentLine = saved.dialogues;
-      this.resumeIndex = saved.dialogues;
+      this.resumeIndex = saved.dialogues; // ← set resume point
       this.appliedStats = { ...(saved.appliedStats || {}) };
       this.appliedChoiceStats = { ...(saved.appliedChoiceStats || {}) };
     } else {
@@ -115,22 +118,17 @@ export class Scene {
       if (dlg?.background) {
         await this.changeBackground(dlg.background, dlg.transition);
       }
-      // 👇 OPTIONAL: Fast-forward sprite state if needed logic exists
-      // Sa ngayon, ia-update lang ng processLine ang sprite sa currentLine.
     }
 
+    // Show choices if current line is a choice
     const current = this.dialogues[this.currentLine];
     if (current?.choices) this.choicesBox.setChoices(current.choices);
 
+    // Re-apply stats for previously applied lines
     for (const idx in this.appliedStats)
       this.applyStats(this.dialogues[idx], idx, true);
     for (const idx in this.appliedChoiceStats)
       this.applyChoiceStatsDirect(idx, this.appliedChoiceStats[idx], true);
-
-    // 👇 Ensure sprite is loaded for the resumed line
-    if (current?.sprite) {
-      await this.sprite.update(current.sprite);
-    }
 
     this.core.updateGameState("scene", this.sceneId, this.currentLine);
   }
@@ -142,46 +140,42 @@ export class Scene {
       this.backHandler = null;
     }
     this.choicesBox.clear();
-    // 👇 Clear sprite on unload
-    this.sprite.clear();
   }
 
   async processLine() {
     if (this.currentLine < 0 || this.currentLine >= this.dialogues.length)
       return;
 
+    // Check dialouge data
     const obj = this.dialogues[this.currentLine];
 
-    // AUTOSAVE
+    // 🔍 AUTOSAVE DETECTION HERE
     if (obj?.autosave) {
       this.core.saveloadHandler.autosave(this.core);
       this.popupNotif?.show("Autosave", "blue");
-    }
 
-    // BACKGROUND ONLY
+      console.log(
+        `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
+        "color: #627563ff; font-weight: bold;"
+      );
+    }
+    // ----------------- BACKGROUND ONLY -----------------
     if (obj?.background) {
       await this.changeBackground(obj.background, obj.transition);
       this.currentLine++;
+      // auto-advance to next line if available
       if (this.currentLine < this.dialogues.length) {
         await this.processLine();
       } else if (this.data.goto) {
+        // if end of scene, go to next background/scene
         await this.gotoNext();
       }
       return;
     }
 
-    // 👇 SPRITE PROCESSING
-    // Kung may "sprite" property ang line, i-update ang sprite
-    if (obj.sprite) {
-      await this.sprite.update(obj.sprite);
-    }
-    // Optional: Kung gusto mong mawala ang sprite pag wala sa JSON, i-uncomment ito:
-    else {
-      this.sprite.clear();
-    }
-
-    // CHOICES
+    // ----------------- CHOICES -----------------
     if (obj?.choices) {
+      // Store pre-choice state if not already stored
       if (!this.preChoiceState[this.currentLine]) {
         const c = this.core.currentCharacter;
         this.preChoiceState[this.currentLine] = {
@@ -195,7 +189,7 @@ export class Scene {
       return;
     }
 
-    // STAT-ONLY
+    // ----------------- STAT-ONLY LINES -----------------
     const isStatOnly = !obj?.speaker && !obj?.text && !obj?.choices;
     if (isStatOnly) {
       if (!this.appliedStats.hasOwnProperty(this.currentLine)) {
@@ -210,7 +204,7 @@ export class Scene {
       return;
     }
 
-    // NORMAL DIALOGUE
+    // ----------------- NORMAL DIALOGUE -----------------
     if (!this.appliedStats.hasOwnProperty(this.currentLine)) {
       this.applyStats(obj, this.currentLine);
     }
@@ -218,11 +212,7 @@ export class Scene {
     this.render(this.core.ctx);
   }
 
-  // ... (gotoNext, nextDialogue, prevDialogue, handleChoice methods remain the same) ...
-  // Siguraduhin lang sa prevDialogue na i-handle ang sprite kung kailangan mag-revert.
-  // Sa simpleng implementation, kapag bumalik sa previous line, tatawagin ulit ang processLine
-  // kaya mag-uupdate din ang sprite base sa data ng previous line.
-
+  // ----------------- HELPER METHOD -----------------
   async gotoNext() {
     if (!this.data.goto) return;
     await this.core.updateGameState("background", this.data.goto);
@@ -257,42 +247,53 @@ export class Scene {
   async prevDialogue() {
     if (this.isLoading) return;
 
+    // Prevent going back before the resume point
     const minIndex = this.resumeIndex ?? 0;
     if (this.currentLine <= minIndex) return;
 
+    // if choices are visible currently, just clear them (we'll reset if needed)
     if (this.choicesBox.choices.length > 0) {
       this.choicesBox.clear();
     }
 
+    // Revert any stats applied on the current line (normal dialogue)
     this.revertStats(this.currentLine);
 
+    // Revert choice stats if previous line was a choices line
     const prevIndex = this.currentLine - 1;
     if (this.appliedChoiceStats[prevIndex]) {
       this.revertChoiceStats(prevIndex);
     }
 
+    // move back
     this.currentLine = prevIndex;
 
+    // If landed on a choices line, show choices again
     const prev = this.dialogues[this.currentLine];
     if (prev?.choices) {
       this.choicesBox.setChoices(prev.choices);
     }
 
-    // 👇 IMPORTANT: Re-process line to restore correct sprite for this line
-    await this.processLine();
+    this.core.updateGameState("scene", this.sceneId, this.currentLine);
+    this.render(this.core.ctx);
   }
-
-  // ... (handleChoice, applyStats, revertStats, revertChoiceStats, changeBackground, onResize remain same) ...
 
   handleChoice(choice) {
     const idx = this.currentLine;
     const c = this.core.currentCharacter;
 
+    // 🔥 If this choice triggers autosave
     if (choice.autosave === true) {
       this.core.saveloadHandler.autosave(this.core);
       this.popupNotif?.show("Autosave", "blue");
+
+      console.log(
+        `%c[AUTOSAVE TRIGGERED] Scene: ${this.sceneId}, Line: ${this.currentLine}`,
+        "color: #4CAF50; font-weight: bold;"
+      );
     }
 
+    // Ensure preChoiceState exists
     if (!this.preChoiceState[idx]) {
       this.preChoiceState[idx] = { energy: c.energy, max_energy: c.max_energy };
     }
@@ -333,8 +334,8 @@ export class Scene {
     this.processLine();
   }
 
+  // -------------------- existing methods --------------------
   applyStats(obj, index, skipStore = false) {
-    // ... existing logic ...
     const deltas = { money: 0, energy: 0, max_energy: 0, prevEnergy: null };
     if (typeof obj.max_energy === "number" && obj.max_energy !== 0) {
       this.statsManager.modifyMaxEnergy(obj.max_energy);
@@ -356,7 +357,6 @@ export class Scene {
   }
 
   revertStats(index) {
-    // ... existing logic ...
     const deltas = this.appliedStats[index];
     if (!deltas) return;
 
@@ -383,7 +383,6 @@ export class Scene {
   }
 
   revertChoiceStats(choiceIndex) {
-    // ... existing logic ...
     const deltas = this.appliedChoiceStats[choiceIndex];
     if (!deltas) return;
 
@@ -406,7 +405,6 @@ export class Scene {
   }
 
   async changeBackground(bgId, transition) {
-    // ... existing logic ...
     const bgCache = this.core.dataCache?.backgrounds;
     const bg = bgCache?.[bgId];
     if (!bg?.image) return;
@@ -446,8 +444,6 @@ export class Scene {
   onResize(scaleRatio) {
     this.choicesBox?.onResize(scaleRatio);
     this.popupNotif?.onResize(scaleRatio);
-    // Sprite is handled in render using percentages, so no explicit resize needed here
-    // unless you cache dimensions.
 
     const canvas = this.core.canvas;
     const size = canvas.height * 0.06;
@@ -460,8 +456,6 @@ export class Scene {
   render(ctx) {
     const canvas = this.core.canvas;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 1. Background
     if (this.image)
       ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
     else {
@@ -469,12 +463,6 @@ export class Scene {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // 👇 2. Sprite (Nasa ilalim ng Dialogue, sa ibabaw ng Background)
-    if (this.sprite) {
-      this.sprite.render(ctx);
-    }
-
-    // 3. Dialogue Box
     const line =
       this.dialogues[
         Math.max(0, Math.min(this.currentLine, this.dialogues.length - 1))
@@ -482,7 +470,6 @@ export class Scene {
     if (line?.speaker && line?.text)
       this.dialogueBox.render(ctx, line.speaker, line.text);
 
-    // 4. UI Elements
     this.choicesBox.render(ctx);
     this.popupNotif.render(ctx);
 
