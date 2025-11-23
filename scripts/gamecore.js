@@ -22,6 +22,7 @@ export class GameCore {
       backgrounds: null,
       scenes: null,
       gameSettings: null,
+      characterSprites: null,
     };
 
     //Global click handler
@@ -62,15 +63,18 @@ export class GameCore {
 
   async preloadData() {
     try {
-      const [bgRes, sceneRes, settingsRes] = await Promise.all([
-        fetch("./data/data-backgrounds.json").then((r) => r.json()),
-        fetch("./data/data-scenes.json").then((r) => r.json()),
-        fetch("./data/data-gamesettings.json").then((r) => r.json()),
-      ]);
+      const [bgRes, sceneRes, settingsRes, characterSprites] =
+        await Promise.all([
+          fetch("./data/data-backgrounds.json").then((r) => r.json()),
+          fetch("./data/data-scenes.json").then((r) => r.json()),
+          fetch("./data/data-gamesettings.json").then((r) => r.json()),
+          fetch("./data/data-character-sprites.json").then((r) => r.json()),
+        ]);
 
       this.dataCache.backgrounds = bgRes;
       this.dataCache.scenes = sceneRes;
       this.dataCache.gameSettings = settingsRes;
+      this.dataCache.characterSprites = characterSprites;
 
       console.log("✅ Game data preloaded:", this.dataCache);
     } catch (err) {

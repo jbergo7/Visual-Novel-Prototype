@@ -1,0 +1,95 @@
+{
+  "Andrea": {
+    "neutral_pos0_left": {
+      "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+      "sx": 5,
+      "sy": 7,
+      "sWidth": 445,
+      "sHeight": 973,
+      "x": 100,
+      "y": 100,
+      "width": 445,
+      "height": 973
+    },
+    "neutral_pos1_left": {
+      "image": "assets/sprites/characters/andrea/andrea_surprised.png",
+      "sx": 474,
+      "sy": 7,
+      "sWidth": 445,
+      "sHeight": 973,
+      "x": 100,
+      "y": 100,
+      "width": 445,
+      "height": 973
+    },
+    "happy_pos0_left": {
+      "image": "assets/sprites/characters/andrea/andrea_happy.png",
+      "sx": 5,
+      "sy": 7,
+      "sWidth": 445,
+      "sHeight": 973,
+      "x": 100,
+      "y": 100,
+      "width": 445,
+      "height": 973
+    },
+    "angry_pos0_left": {
+      "image": "assets/sprites/characters/andrea/andrea_angry.png",
+      "sx": 5,
+      "sy": 7,
+      "sWidth": 445,
+      "sHeight": 973,
+      "x": 100,
+      "y": 100,
+      "width": 445,
+      "height": 973
+    }
+  },
+
+  "Jayson": {
+    "neutral_pos0_right": {
+      "image": "assets/sprites/characters/jayson/jayson_neutral.png",
+      "sx": 0,
+      "sy": 0,
+      "sWidth": 450,
+      "sHeight": 980,
+      "x": 900,
+      "y": 100,
+      "width": 450,
+      "height": 980
+    },
+    "neutral_pos1_right": {
+      "image": "assets/sprites/characters/jayson/jayson_smile.png",
+      "sx": 450,
+      "sy": 0,
+      "sWidth": 450,
+      "sHeight": 980,
+      "x": 900,
+      "y": 100,
+      "width": 450,
+      "height": 980
+    },
+    "serious_pos0_right": {
+      "image": "assets/sprites/characters/jayson/jayson_serious.png",
+      "sx": 0,
+      "sy": 0,
+      "sWidth": 450,
+      "sHeight": 980,
+      "x": 900,
+      "y": 100,
+      "width": 450,
+      "height": 980
+    },
+    "angry_pos0_right": {
+      "image": "assets/sprites/characters/jayson/jayson_angry.png",
+      "sx": 0,
+      "sy": 0,
+      "sWidth": 450,
+      "sHeight": 980,
+      "x": 900,
+      "y": 100,
+      "width": 450,
+      "height": 980
+    }
+  }
+}
