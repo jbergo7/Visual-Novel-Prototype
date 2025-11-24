@@ -8,7 +8,7 @@ class SpriteEntity {
     this.core = core;
     this.image = null;
 
-    // Destination (Screen)
+    // Destination (Screen) - Can be Number or String now
     this.x = 0;
     this.y = 0;
     this.width = 0;
@@ -20,18 +20,9 @@ class SpriteEntity {
     this.sWidth = 0;
     this.sHeight = 0;
 
-    // Transition State
-    this.transitionType = "none"; // "fade", "slide-left", "slide-right"
-    this.alpha = 1; // Opacity (0 to 1)
-    this.offsetX = 0; // For sliding effect
-
-    // Animation Speed
-    this.fadeSpeed = 0.05;
-    this.slideSpeed = 25;
-
-    // Design Resolution
-    this.DESIGN_WIDTH = this.core.baseWidth || 1920;
-    this.DESIGN_HEIGHT = this.core.baseHeight || 1080;
+    // Design Resolution (Basehan ng positioning)
+    this.DESIGN_WIDTH = this.core.baseWidth; // Assuming 16:9 Aspect Ratio
+    this.DESIGN_HEIGHT = this.core.baseHeight;
   }
 
   async load(data) {
@@ -49,6 +40,7 @@ class SpriteEntity {
     }
 
     // 2. Assign Properties
+    // Note: this.x/this.y can now accept Strings ("center", "left -50")
     this.x = spriteData.x !== undefined ? spriteData.x : 0;
     this.y = spriteData.y !== undefined ? spriteData.y : 0;
     this.width = spriteData.width !== undefined ? spriteData.width : 0;
@@ -59,23 +51,7 @@ class SpriteEntity {
     this.sWidth = spriteData.sWidth !== undefined ? spriteData.sWidth : null;
     this.sHeight = spriteData.sHeight !== undefined ? spriteData.sHeight : null;
 
-    // 3. Setup Transition
-    this.transitionType = spriteData.transition || "none";
-
-    if (this.transitionType === "fade") {
-      this.alpha = 0; // Start invisible
-    } else if (this.transitionType === "slide-left") {
-      this.alpha = 0;
-      this.offsetX = 100; // Start 100px to the right
-    } else if (this.transitionType === "slide-right") {
-      this.alpha = 0;
-      this.offsetX = -100; // Start 100px to the left
-    } else {
-      this.alpha = 1;
-      this.offsetX = 0;
-    }
-
-    // 4. Load Image
+    // 3. Load Image
     if (spriteData.image) {
       const img = new Image();
       img.src = spriteData.image;
@@ -86,14 +62,20 @@ class SpriteEntity {
 
   /**
    * 🔥 HELPER: Parses keywords ("center", "right -50") into numbers
+   * @param {String|Number} input - The value from JSON
+   * @param {Number} containerSize - The size of the screen (Design Width/Height)
+   * @param {Number} objectSize - The size of the sprite
    */
   parseCoordinate(input, containerSize, objectSize) {
+    // If it's already a number, return it as is
     if (typeof input === "number") return input;
     if (!input) return 0;
 
+    // Split string "left -50" -> ["left", "-50"]
     const parts = input.toString().split(" ");
     const keyword = parts[0].toLowerCase();
 
+    // Get offset if exists (e.g., the "-50" part)
     let offset = 0;
     if (parts.length > 1) {
       offset = parseFloat(parts[1]);
@@ -103,6 +85,7 @@ class SpriteEntity {
     let position = 0;
 
     switch (keyword) {
+      // X-Axis Keywords
       case "left":
         position = 0;
         break;
@@ -113,13 +96,17 @@ class SpriteEntity {
       case "right":
         position = containerSize - objectSize;
         break;
+
+      // Y-Axis Keywords
       case "top":
         position = 0;
         break;
       case "bottom":
         position = containerSize - objectSize;
         break;
+
       default:
+        // Try to parse as simple string number "100"
         position = parseFloat(keyword);
         if (isNaN(position)) position = 0;
     }
@@ -127,34 +114,13 @@ class SpriteEntity {
     return position + offset;
   }
 
-  // 🔥 Update Animation State (Called every frame inside render)
-  updateAnimation() {
-    if (this.alpha < 1) {
-      this.alpha += this.fadeSpeed;
-      if (this.alpha > 1) this.alpha = 1;
-    }
-
-    if (this.offsetX !== 0) {
-      if (this.offsetX > 0) {
-        this.offsetX -= this.slideSpeed;
-        if (this.offsetX < 0) this.offsetX = 0;
-      } else {
-        this.offsetX += this.slideSpeed;
-        if (this.offsetX > 0) this.offsetX = 0;
-      }
-    }
-  }
-
   render(ctx) {
     if (!this.image) return;
-
-    // Update Animation Values
-    this.updateAnimation();
 
     const canvas = this.core.canvas;
     const scaleFactor = canvas.height / this.DESIGN_HEIGHT;
 
-    // Source Rect
+    // A. Source Rect (Original Image)
     const finalSx = this.sx;
     const finalSy = this.sy;
     const finalSWidth =
@@ -162,25 +128,23 @@ class SpriteEntity {
     const finalSHeight =
       this.sHeight !== null ? this.sHeight : this.image.naturalHeight;
 
-    // Target Size
+    // B. Calculate Target Size (Design Units)
+    // Ito yung size niya sa 1280x720 world bago i-scale sa screen
     const designW = this.width !== 0 ? this.width : finalSWidth;
     const designH = this.height !== 0 ? this.height : finalSHeight;
 
-    // Target Position
+    // C. Calculate Position (Design Units) using Helper
+    // Convert "center" -> 640 (minus half sprite width)
     const designX = this.parseCoordinate(this.x, this.DESIGN_WIDTH, designW);
     const designY = this.parseCoordinate(this.y, this.DESIGN_HEIGHT, designH);
 
-    // Final Draw Coordinates (Apply scale AND animation offset)
-    // Note: OffsetX is design units, so we scale it too.
-    const drawX = (designX + this.offsetX) * scaleFactor;
+    // D. Final Scale for Screen
+    const drawX = designX * scaleFactor;
     const drawY = designY * scaleFactor;
     const drawW = designW * scaleFactor;
     const drawH = designH * scaleFactor;
 
-    // Apply Opacity
-    const prevAlpha = ctx.globalAlpha;
-    ctx.globalAlpha = this.alpha;
-
+    // E. Draw
     ctx.drawImage(
       this.image,
       finalSx,
@@ -192,9 +156,6 @@ class SpriteEntity {
       drawW,
       drawH
     );
-
-    // Restore Opacity
-    ctx.globalAlpha = prevAlpha;
   }
 }
 
@@ -215,9 +176,6 @@ export class Sprite {
     }
 
     const dataList = Array.isArray(data) ? data : [data];
-
-    // Reuse existing entities if possible to keep animations smooth?
-    // For now, simple replace logic (transitions will play on new entities).
     const newEntities = [];
 
     const promises = dataList.map(async (item) => {

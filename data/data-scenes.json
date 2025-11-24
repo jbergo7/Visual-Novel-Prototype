@@ -12,7 +12,8 @@
           },
           {
             "character": "Jayson",
-            "pose": "neutral_pos0_right"
+            "pose": "neutral_pos0_right",
+            "transition": "fade"
           }
         ]
       },
@@ -29,7 +30,8 @@
           "x": 100,
           "y": 100,
           "width": 445,
-          "height": 973
+          "height": 973,
+          "transition": "fade"
         },
         "autosave": true
       },
