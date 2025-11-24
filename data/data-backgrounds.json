@@ -7,8 +7,6 @@
         "id": "shop",
         "x": 200,
         "y": 160,
-        "width": 250,
-        "height": 80,
         "text": "Shop",
         "action": {
           "type": "background",
@@ -19,8 +17,6 @@
         "id": "rest",
         "x": 650,
         "y": 160,
-        "width": 250,
-        "height": 80,
         "text": "Rest",
         "action": { "type": "scene", "target": "sleep" }
       },
@@ -28,8 +24,6 @@
         "id": "talk_mika",
         "x": 450,
         "y": 450,
-        "width": 250,
-        "height": 80,
         "text": "Talk to Mika",
         "action": { "type": "scene", "target": "scene_1" }
       },
@@ -37,8 +31,6 @@
         "id": "play_videogames",
         "x": 450,
         "y": 550,
-        "width": 250,
-        "height": 80,
         "text": "Play Video Games",
         "action": { "energy": -10 }
       },
@@ -46,8 +38,6 @@
         "id": "drink_energy",
         "x": 450,
         "y": 650,
-        "width": 250,
-        "height": 80,
         "text": "Drink EnergyBoost",
         "action": { "max_energy": 10, "energy": 10, "money": 10 }
       }
@@ -65,8 +55,6 @@
         "id": "home",
         "x": 200,
         "y": 360,
-        "width": 250,
-        "height": 80,
         "text": "Go Home",
         "action": { "type": "background", "target": "home" }
       },
@@ -74,8 +62,6 @@
         "id": "buy_grocery",
         "x": 1150,
         "y": 160,
-        "width": 250,
-        "height": 80,
         "text": "Buy Grocery",
         "action": {
           "type": "background",
