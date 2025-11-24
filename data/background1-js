@@ -4,8 +4,6 @@ import { PopupNotif } from "./components/popup_notif.js";
 import { StatsManager } from "./stats_manager.js";
 import MenuButton from "./components/menu_button.js";
 import MenuPopup from "./components/menu_popup.js";
-// 👇 IMPORT SPRITE
-import { Sprite } from "./components/sprite.js";
 
 export class Background {
   constructor(core, backgroundId) {
@@ -17,9 +15,6 @@ export class Background {
     this.buttons = [];
     this.scale = 1;
     this.isLoading = false;
-
-    // 👇 INITIALIZE SPRITE MANAGER
-    this.sprite = new Sprite(core);
 
     // Shared singletons
     if (!core.header) core.header = new Header(core);
@@ -33,6 +28,9 @@ export class Background {
     this.statsManager = core.statsManager;
     this.menuButton = core.menuButton;
     this.menuPopup = core.menuPopup;
+
+    // no per-background listener
+    // core should handle clicks globally and delegate to active scene
   }
 
   async load() {
@@ -64,13 +62,6 @@ export class Background {
       this.image = img;
 
       this.unload();
-
-      // 👇 LOAD SPRITES IF AVAILABLE
-      if (this.bgData.sprite) {
-        await this.sprite.update(this.bgData.sprite);
-      } else {
-        this.sprite.clear(); // Clear if no sprites defined for this background
-      }
 
       // Create buttons
       this.buttons = (this.bgData.buttons || []).map((btnData) => {
@@ -153,8 +144,6 @@ export class Background {
   unload() {
     this.buttons.forEach((btn) => btn.removeClickListener());
     this.buttons = [];
-    // 👇 Clear sprites on unload
-    this.sprite.clear();
   }
 
   onResize(scale) {
@@ -163,7 +152,6 @@ export class Background {
     this.buttons.forEach((btn) => btn.resize(scale));
     this.header?.onResize(scale);
     this.popupNotif?.onResize(scale);
-    // Sprite handles its own resize via render percentages
   }
 
   executeGameFunction(name) {
@@ -178,16 +166,19 @@ export class Background {
     }
   }
 
+  // 🔥 called by global core click listener
   handleGlobalClick(e) {
     const rect = this.core.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // 1️⃣ Menu button toggle
     if (this.menuButton.containsPoint(x, y)) {
       this.menuPopup.toggle();
       return;
     }
 
+    // 2️⃣ Block background buttons if menu is visible
     if (this.menuPopup.visible) return;
   }
 
@@ -195,15 +186,10 @@ export class Background {
     const canvas = this.core.canvas;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // 1. Background Image
     if (this.image)
       ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
     else ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 👇 2. Render Sprite (Over Background, Under Buttons)
-    this.sprite.render(ctx);
-
-    // 3. UI Elements
     this.header?.render(ctx);
     this.buttons.forEach((btn) => btn.render(ctx));
     this.popupNotif?.render(ctx);

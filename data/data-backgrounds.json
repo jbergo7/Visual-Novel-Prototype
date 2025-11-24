@@ -51,6 +51,13 @@
         "text": "Drink EnergyBoost",
         "action": { "max_energy": 10, "energy": 10, "money": 10 }
       }
+    ],
+    "sprite": [
+      {
+        "character": "Andrea",
+        "pose": "neutral_pos1_half",
+        "x": 800
+      }
     ]
   },
   "grocery": {
@@ -78,6 +85,13 @@
           "energy": -10,
           "money": -30
         }
+      }
+    ],
+    "sprite": [
+      {
+        "character": "Andrea",
+        "pose": "neutral_pos1_half",
+        "x": 800
       }
     ]
   },

@@ -21,6 +21,13 @@
       "y": 100,
       "width": 445,
       "height": 973
+    },
+    "neutral_pos1_half": {
+      "image": "assets/sprites/characters/andrea/andrea_neutral.png",
+      "x": 100,
+      "y": 100,
+      "width": 300,
+      "height": 639
     }
   },
 
