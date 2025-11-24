@@ -2,13 +2,14 @@
 
 // =====================================================
 // 1. INTERNAL CLASS: Handles logic for ONE character
+//    (Dito inilipat ang logic mo dati)
 // =====================================================
 class SpriteEntity {
   constructor(core) {
     this.core = core;
     this.image = null;
 
-    // Destination (Screen) - Can be Number or String now
+    // Destination (Screen)
     this.x = 0;
     this.y = 0;
     this.width = 0;
@@ -20,27 +21,30 @@ class SpriteEntity {
     this.sWidth = 0;
     this.sHeight = 0;
 
-    // Design Resolution (Basehan ng positioning)
-    this.DESIGN_WIDTH = this.core.baseWidth; // Assuming 16:9 Aspect Ratio
-    this.DESIGN_HEIGHT = this.core.baseHeight;
+    // Design Resolution
+    this.DESIGN_HEIGHT = 720;
   }
 
   async load(data) {
     let spriteData = data;
 
-    // 1. Data Lookup
+    // ---------------------------------------------------------
+    // 🔥 DATA LOOKUP LOGIC (Pareho ng dati mong code)
+    // ---------------------------------------------------------
     if (data.character && data.pose) {
       const cache = this.core.dataCache?.characterSprites;
       if (cache && cache[data.character] && cache[data.character][data.pose]) {
         const baseData = cache[data.character][data.pose];
+        // Merge: Cache Base + Scene Overrides
         spriteData = { ...baseData, ...data };
       } else {
         console.warn(`⚠️ Sprite not found: ${data.character} -> ${data.pose}`);
       }
     }
 
-    // 2. Assign Properties
-    // Note: this.x/this.y can now accept Strings ("center", "left -50")
+    // ---------------------------------------------------------
+    // ASSIGN PROPERTIES
+    // ---------------------------------------------------------
     this.x = spriteData.x !== undefined ? spriteData.x : 0;
     this.y = spriteData.y !== undefined ? spriteData.y : 0;
     this.width = spriteData.width !== undefined ? spriteData.width : 0;
@@ -51,7 +55,9 @@ class SpriteEntity {
     this.sWidth = spriteData.sWidth !== undefined ? spriteData.sWidth : null;
     this.sHeight = spriteData.sHeight !== undefined ? spriteData.sHeight : null;
 
-    // 3. Load Image
+    // ---------------------------------------------------------
+    // LOAD IMAGE
+    // ---------------------------------------------------------
     if (spriteData.image) {
       const img = new Image();
       img.src = spriteData.image;
@@ -60,67 +66,13 @@ class SpriteEntity {
     }
   }
 
-  /**
-   * 🔥 HELPER: Parses keywords ("center", "right -50") into numbers
-   * @param {String|Number} input - The value from JSON
-   * @param {Number} containerSize - The size of the screen (Design Width/Height)
-   * @param {Number} objectSize - The size of the sprite
-   */
-  parseCoordinate(input, containerSize, objectSize) {
-    // If it's already a number, return it as is
-    if (typeof input === "number") return input;
-    if (!input) return 0;
-
-    // Split string "left -50" -> ["left", "-50"]
-    const parts = input.toString().split(" ");
-    const keyword = parts[0].toLowerCase();
-
-    // Get offset if exists (e.g., the "-50" part)
-    let offset = 0;
-    if (parts.length > 1) {
-      offset = parseFloat(parts[1]);
-      if (isNaN(offset)) offset = 0;
-    }
-
-    let position = 0;
-
-    switch (keyword) {
-      // X-Axis Keywords
-      case "left":
-        position = 0;
-        break;
-      case "center":
-      case "middle":
-        position = containerSize / 2 - objectSize / 2;
-        break;
-      case "right":
-        position = containerSize - objectSize;
-        break;
-
-      // Y-Axis Keywords
-      case "top":
-        position = 0;
-        break;
-      case "bottom":
-        position = containerSize - objectSize;
-        break;
-
-      default:
-        // Try to parse as simple string number "100"
-        position = parseFloat(keyword);
-        if (isNaN(position)) position = 0;
-    }
-
-    return position + offset;
-  }
-
   render(ctx) {
     if (!this.image) return;
 
     const canvas = this.core.canvas;
     const scaleFactor = canvas.height / this.DESIGN_HEIGHT;
 
-    // A. Source Rect (Original Image)
+    // A. Source Rect
     const finalSx = this.sx;
     const finalSy = this.sy;
     const finalSWidth =
@@ -128,23 +80,17 @@ class SpriteEntity {
     const finalSHeight =
       this.sHeight !== null ? this.sHeight : this.image.naturalHeight;
 
-    // B. Calculate Target Size (Design Units)
-    // Ito yung size niya sa 1280x720 world bago i-scale sa screen
-    const designW = this.width !== 0 ? this.width : finalSWidth;
-    const designH = this.height !== 0 ? this.height : finalSHeight;
+    // B. Destination Rect (Scaled)
+    const drawX = this.x * scaleFactor;
+    const drawY = this.y * scaleFactor;
 
-    // C. Calculate Position (Design Units) using Helper
-    // Convert "center" -> 640 (minus half sprite width)
-    const designX = this.parseCoordinate(this.x, this.DESIGN_WIDTH, designW);
-    const designY = this.parseCoordinate(this.y, this.DESIGN_HEIGHT, designH);
+    const finalW = this.width !== 0 ? this.width : finalSWidth;
+    const finalH = this.height !== 0 ? this.height : finalSHeight;
 
-    // D. Final Scale for Screen
-    const drawX = designX * scaleFactor;
-    const drawY = designY * scaleFactor;
-    const drawW = designW * scaleFactor;
-    const drawH = designH * scaleFactor;
+    const drawW = finalW * scaleFactor;
+    const drawH = finalH * scaleFactor;
 
-    // E. Draw
+    // C. Draw
     ctx.drawImage(
       this.image,
       finalSx,
@@ -161,31 +107,44 @@ class SpriteEntity {
 
 // =====================================================
 // 2. MAIN CLASS: Manages Multiple Sprites
+//    (Ito ang tinatawag ng Scene.js)
 // =====================================================
 export class Sprite {
   constructor(core) {
     this.core = core;
-    this.entities = [];
+    this.entities = []; // Array of active SpriteEntity objects
     this.visible = false;
   }
 
+  /**
+   * Updates the sprite list.
+   * @param {Object|Array} data - Can be a single sprite object OR an array of objects.
+   */
   async update(data) {
+    // 1. Clear if null
     if (!data) {
       this.clear();
       return;
     }
 
+    // 2. Normalize input to always be an Array
+    // Kung object lang (single sprite), gagawin nating array na may isang laman.
     const dataList = Array.isArray(data) ? data : [data];
+
+    // 3. Create new entities list
     const newEntities = [];
 
+    // 4. Load all sprites in parallel (sabay-sabay mag-load)
     const promises = dataList.map(async (item) => {
       const entity = new SpriteEntity(this.core);
       await entity.load(item);
       newEntities.push(entity);
     });
 
+    // Hintayin matapos lahat ng loading
     await Promise.all(promises);
 
+    // 5. Replace the old list with the new one
     this.entities = newEntities;
     this.visible = true;
   }
@@ -198,6 +157,7 @@ export class Sprite {
   render(ctx) {
     if (!this.visible || this.entities.length === 0) return;
 
+    // Loop through all entities and render them
     this.entities.forEach((entity) => {
       entity.render(ctx);
     });

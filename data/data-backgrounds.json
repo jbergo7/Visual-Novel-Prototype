@@ -52,13 +52,11 @@
         "action": { "max_energy": 10, "energy": 10, "money": 10 }
       }
     ],
-    "sprite": [
-      {
-        "character": "Andrea",
-        "pose": "neutral_pos1_half",
-        "x": 800
-      }
-    ]
+    "sprite": {
+      "character": "Andrea",
+      "pose": "neutral_pos1_half",
+      "x": "right -100"
+    }
   },
   "grocery": {
     "image": "assets/bg_grocery.jpg",
@@ -92,6 +90,12 @@
         "character": "Andrea",
         "pose": "neutral_pos1_half",
         "x": 800
+      },
+      {
+        "character": "Andrea",
+        "pose": "neutral_pos1_half",
+        "x": "center",
+        "y": "center -50"
       }
     ]
   },
