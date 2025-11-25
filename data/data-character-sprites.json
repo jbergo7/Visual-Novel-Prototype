@@ -1,37 +1,76 @@
 {
   "andrea": {
-    "neutral_pos0_left": {
-      "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
-      "sx": 5,
-      "sy": 7,
-      "sWidth": 445,
-      "sHeight": 973,
+    "neutral_profile": {
+      "image": "assets/sprites/characters/character_sprite_sample.png",
+      "sx": 360,
+      "sy": 44,
+      "sWidth": 411,
+      "sHeight": 512,
       "x": 0,
-      "y": 100,
-      "width": 445,
-      "height": 973
+      "y": 0,
+      "width": 411,
+      "height": 512
     },
-    "neutral_pos1_left": {
-      "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
-      "sx": 474,
-      "sy": 7,
-      "sWidth": 445,
-      "sHeight": 973,
-      "x": 100,
-      "y": 100,
-      "width": 445,
-      "height": 973
+    "neutral_fullbody": {
+      "image": "assets/sprites/characters/character_sprite_sample.png",
+      "sx": 4,
+      "sy": 28,
+      "sWidth": 344,
+      "sHeight": 1007,
+      "x": 0,
+      "y": 0,
+      "width": 344,
+      "height": 1007
     },
-    "neutral_pos1_half": {
-      "image": "assets/sprites/characters/andrea/andrea_neutral.png",
-      "x": 100,
-      "y": 100,
-      "width": 300,
-      "height": 639
+    "neutral_pos1": {
+      "image": "assets/sprites/characters/character_sprite_sample.png",
+      "sx": 413,
+      "sy": 587,
+      "sWidth": 305,
+      "sHeight": 451,
+      "x": 0,
+      "y": 0,
+      "width": 305,
+      "height": 451
+    }
+  },
+  "mika": {
+    "neutral_profile": {
+      "image": "assets/sprites/characters/character_sprite_sample.png",
+      "sx": 1141,
+      "sy": 43,
+      "sWidth": 435,
+      "sHeight": 534,
+      "x": 0,
+      "y": 0,
+      "width": 435,
+      "height": 534
+    },
+    "neutral_fullbody": {
+      "image": "assets/sprites/characters/character_sprite_sample.png",
+      "sx": 791,
+      "sy": 53,
+      "sWidth": 338,
+      "sHeight": 1005,
+      "x": 0,
+      "y": 0,
+      "width": 338,
+      "height": 1005
+    },
+    "neutral_pos1": {
+      "image": "assets/sprites/characters/character_sprite_sample.png",
+      "sx": 1189,
+      "sy": 591,
+      "sWidth": 324,
+      "sHeight": 432,
+      "x": 0,
+      "y": 0,
+      "width": 324,
+      "height": 432
     }
   },
 
-  "jayson": {
+  "jane": {
     "neutral_pos0_right": {
       "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
       "sx": 474,

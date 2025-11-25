@@ -44,8 +44,9 @@
     ],
     "sprite": {
       "character": "[player]",
-      "pose": "neutral_pos1_half",
-      "x": "right -100"
+      "pose": "neutral_fullbody",
+      "x": "right -100",
+      "y": "center"
     }
   },
   "grocery": {
@@ -74,13 +75,13 @@
     "sprite": [
       {
         "character": "[player]",
-        "pose": "neutral_pos1_half",
+        "pose": "neutral_fullbody",
         "x": 800
       },
       {
         "character": "[player]",
-        "pose": "neutral_pos1_half",
-        "x": "center",
+        "pose": "neutral_fullbody",
+        "x": "right",
         "y": "center -50"
       }
     ]
