@@ -13,7 +13,6 @@ class SpriteEntity {
     this.y = 0;
     this.width = 0;
     this.height = 0;
-    this.scale = 1; // 💡 NEW: Scale factor (1.0 = original size)
 
     // Source (Crop)
     this.sx = 0;
@@ -55,8 +54,6 @@ class SpriteEntity {
     this.y = spriteData.y !== undefined ? spriteData.y : 0;
     this.width = spriteData.width !== undefined ? spriteData.width : 0;
     this.height = spriteData.height !== undefined ? spriteData.height : 0;
-
-    this.scale = spriteData.scale !== undefined ? spriteData.scale : 1; // 💡 NEW: Assign Scale
 
     this.sx = spriteData.sx !== undefined ? spriteData.sx : 0;
     this.sy = spriteData.sy !== undefined ? spriteData.sy : 0;
@@ -166,15 +163,11 @@ class SpriteEntity {
     const finalSHeight =
       this.sHeight !== null ? this.sHeight : this.image.naturalHeight;
 
-    // Target Size (Unscaled or explicitly set)
-    let designW = this.width !== 0 ? this.width : finalSWidth;
-    let designH = this.height !== 0 ? this.height : finalSHeight;
+    // Target Size
+    const designW = this.width !== 0 ? this.width : finalSWidth;
+    const designH = this.height !== 0 ? this.height : finalSHeight;
 
-    // 💡 NEW: Apply Scale to dimensions (design units)
-    designW *= this.scale;
-    designH *= this.scale;
-
-    // Target Position (Uses the scaled designW/H for "center" keyword)
+    // Target Position
     const designX = this.parseCoordinate(this.x, this.DESIGN_WIDTH, designW);
     const designY = this.parseCoordinate(this.y, this.DESIGN_HEIGHT, designH);
 

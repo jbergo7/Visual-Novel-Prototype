@@ -1,9 +1,9 @@
 {
   "gameTitle": "Visual Novel",
-  "version": "0.4.6-a",
+  "version": "0.4.7-a",
   "date_updated": "11-25-2025",
   "gameState": {
-    "currentCharacterId": "mika",
+    "currentCharacterId": "andrea",
     "currentChapter": 1,
     "currentEpisode": 1,
     "currentDay": 1,

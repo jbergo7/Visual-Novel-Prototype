@@ -10,11 +10,14 @@
             "character": "[player]",
             "pose": "neutral_profile",
             "x": "left 300",
-            "y": "bottom -270"
+            "y": "bottom -270",
+            "scale": 0.8
           },
           {
             "character": "jane",
             "pose": "neutral_pos0_right",
+            "scale": 0.8,
+            "y": "bottom",
             "transition": "fade"
           }
         ]
