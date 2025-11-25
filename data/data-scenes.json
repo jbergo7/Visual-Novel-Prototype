@@ -7,11 +7,11 @@
         "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento.",
         "sprite": [
           {
-            "character": "Andrea",
+            "character": "andrea",
             "pose": "neutral_pos0_left"
           },
           {
-            "character": "Jayson",
+            "character": "jayson",
             "pose": "neutral_pos0_right",
             "transition": "fade"
           }

@@ -1,5 +1,5 @@
 {
-  "Andrea": {
+  "andrea": {
     "neutral_pos0_left": {
       "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
       "sx": 5,
@@ -31,7 +31,7 @@
     }
   },
 
-  "Jayson": {
+  "jayson": {
     "neutral_pos0_right": {
       "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
       "sx": 474,
