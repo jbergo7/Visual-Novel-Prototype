@@ -43,7 +43,7 @@
       }
     ],
     "sprite": {
-      "character": "andrea",
+      "character": "[player]",
       "pose": "neutral_pos1_half",
       "x": "right -100"
     }
@@ -73,12 +73,12 @@
     ],
     "sprite": [
       {
-        "character": "andrea",
+        "character": "[player]",
         "pose": "neutral_pos1_half",
         "x": 800
       },
       {
-        "character": "andrea",
+        "character": "[player]",
         "pose": "neutral_pos1_half",
         "x": "center",
         "y": "center -50"

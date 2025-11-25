@@ -38,7 +38,6 @@ class SpriteEntity {
     let spriteData = data;
 
     // 1. Data Lookup
-    // data.character is now either a literal ID (e.g., 'jayson') or the substituted ID (e.g., 'andrea')
     if (data.character && data.pose) {
       const cache = this.core.dataCache?.characterSprites;
       if (cache && cache[data.character] && cache[data.character][data.pose]) {
@@ -217,31 +216,11 @@ export class Sprite {
 
     const dataList = Array.isArray(data) ? data : [data];
 
-    // 🔥 NEW LOGIC: Substitute [player] with the actual character ID from GameState
-    const playerCharId = this.core.gameState?.currentCharacterId;
-
-    const processedDataList = dataList.map((item) => {
-      // Check for the [player] placeholder
-      if (item.character === "[player]") {
-        if (!playerCharId) {
-          console.warn(
-            "⚠️ [player] placeholder used, but currentCharacterId is missing in gameState."
-          );
-          return item; // Return item as is, loading will likely fail
-        }
-        // Return a new object with the character ID substituted
-        return { ...item, character: playerCharId };
-      }
-      return item;
-    });
-    // -------------------------------------------------------------
-
     // Reuse existing entities if possible to keep animations smooth?
     // For now, simple replace logic (transitions will play on new entities).
     const newEntities = [];
 
-    // Use the processed list for loading
-    const promises = processedDataList.map(async (item) => {
+    const promises = dataList.map(async (item) => {
       const entity = new SpriteEntity(this.core);
       await entity.load(item);
       newEntities.push(entity);
