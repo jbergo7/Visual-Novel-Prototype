@@ -235,6 +235,14 @@ export class Scene {
     if (this.core.saveLoadPopup?.visible) return;
     if (this.choicesBox.choices.length > 0) return;
 
+    // CHECK IF TYPING → skip first click
+    if (this.dialogueBox.isTyping) {
+      this.dialogueBox.skipTypewriter();
+      this.render(this.core.ctx);
+      return; // STOP HERE (no next dialogue yet)
+    }
+
+    // NORMAL NEXT DIALOGUE
     this.currentLine++;
     if (this.currentLine >= this.dialogues.length) {
       if (this.data.goto) {
