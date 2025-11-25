@@ -9,26 +9,30 @@ export class GameCore {
     this.baseHeight = 1080;
     this.scaleRatio = 1;
     this.activeScene = null;
+    this.hasRuntimeDataCache = false;
 
     this.saveloadHandler = new SaveLoad();
 
+    // Runtime data
     this.characters = [];
     this.currentCharacter = null;
 
+    // Cached JSON
     this.dataCache = {
       backgrounds: null,
       scenes: null,
       gameSettings: null,
       characterSprites: null,
-      characters: null,
     };
 
+    //Global click handler
     this.canvas.addEventListener("click", (e) => {
       if (this.activeScene?.handleGlobalClick) {
         this.activeScene.handleGlobalClick(e);
       }
     });
 
+    // Mutable save data
     this.gameState = null;
 
     this.saveLoadPopup = new SaveLoadPopup(this);
@@ -38,18 +42,21 @@ export class GameCore {
 
   async initialize() {
     await this.preloadData();
+    // 🔥 Note: loadCharacters() is now called AFTER preloadData()
+    // because it needs this.dataCache.gameSettings to be loaded first.
     await this.loadCharacters();
 
-    // 🔥 ALWAYS use fresh new game state (from gameSettings)
+    // 🔥 Always start with a fresh NEW GAME state
     this.resetGameState();
 
     this.gameTitle = this.dataCache.gameSettings.gameTitle;
     this.version = this.dataCache.gameSettings.version;
     this.date_updated = this.dataCache.gameSettings.date_updated;
 
-    console.log("Game Version:", this.version);
-    console.log("Initial runtime gameState:", this.gameState);
+    console.log("Game Version: " + this.version);
+    console.log("🆕 Fresh Runtime Game State:", this.gameState);
 
+    // 🔥 Show ONLY the Title Screen
     await this.loadScene("TitleScreen");
 
     this.resizeCanvas();
@@ -71,9 +78,9 @@ export class GameCore {
       this.dataCache.gameSettings = settingsRes;
       this.dataCache.characterSprites = characterSprites;
 
-      console.log("Game data preloaded:", this.dataCache);
+      console.log("✅ Game data preloaded:", this.dataCache);
     } catch (err) {
-      console.error("Failed to preload data:", err);
+      console.error("❌ Failed to preload game data:", err);
     }
   }
 
@@ -81,33 +88,59 @@ export class GameCore {
     const res = await fetch("./data/data-characters.json");
     const data = await res.json();
 
-    // Save original copy
+    // 🔹 Cache original character data
     this.dataCache.characters = structuredClone(data);
 
-    // Runtime copy
+    // 🔹 Runtime copy
     this.characters = data.map((ch) => ({ ...ch }));
 
-    console.log("Characters loaded:", this.characters);
+    // 🔥 NEW LOGIC: Use currentCharacterId from game settings as reference
+    const startingCharId =
+      this.dataCache.gameSettings?.gameState?.currentCharacterId;
+
+    this.currentCharacter =
+      this.characters.find((ch) => ch.id === startingCharId) ||
+      this.characters[0];
+
+    // Log the result
+    if (this.currentCharacter) {
+      console.log(
+        `👤 Starting Character: ${this.currentCharacter.name} (${this.currentCharacter.id})`
+      );
+    } else {
+      console.warn(
+        "⚠️ Starting character not found. Defaulting to first character."
+      );
+      this.currentCharacter = this.characters[0];
+    }
   }
 
   async loadScene(name) {
-    if (this.activeScene?.unload) this.activeScene.unload();
+    if (this.activeScene?.unload) {
+      this.activeScene.unload();
+    }
+
     this.activeScene = null;
 
     if (name === "TitleScreen") {
+      console.log("🔄 Loading Title Screen...");
       const { TitleScreen } = await import("./titlescreen.js");
       const ts = new TitleScreen(this);
       this.setActiveScene(ts);
       return;
     }
 
-    console.warn(`Unknown scene '${name}'`);
+    console.warn(`⚠️ Unknown scene '${name}'`);
   }
 
   updateGameState(type, target, dialogueIndex = 0) {
     if (!this.gameState) return;
 
     const { currentBackground, currentScene } = this.gameState;
+    if (!currentBackground || !currentScene) {
+      console.warn("⚠️ Invalid gameState structure.");
+      return;
+    }
 
     if (type === "background") {
       currentBackground.active = true;
@@ -125,6 +158,8 @@ export class GameCore {
       currentScene.target = target;
       currentScene.dialogues = dialogueIndex ?? 0;
     }
+
+    //console.log("🌀 Updated Game State:", this.gameState);
   }
 
   resizeCanvas() {
@@ -151,29 +186,30 @@ export class GameCore {
     const loop = () => {
       this.update();
       this.render();
-      requestAnimationFrame(loop);
+      this.requestRender = requestAnimationFrame(loop); // Made requestRender available
     };
     loop();
   }
 
-  // 🔥 This now uses ONLY gameSettings.currentCharacterId
+  // 🔥 Always resets to ORIGINAL game settings
   resetGameState() {
-    // Reset main state
+    // Reset main game state
     this.gameState = structuredClone(this.dataCache.gameSettings.gameState);
 
-    // Reset characters to original stats
+    // Reset characters to their default stats from cached JSON
     if (this.dataCache.characters) {
       this.characters = this.dataCache.characters.map((ch) => ({ ...ch }));
+
+      // 🔥 NEW LOGIC: Use currentCharacterId from the newly reset gameState
+      const startingCharId = this.gameState.currentCharacterId;
+
+      this.currentCharacter =
+        this.characters.find((ch) => ch.id === startingCharId) ||
+        this.characters[0];
     }
 
-    // 🔥 Get which character to use based on settings
-    const targetId = this.gameState.currentCharacterId;
-
-    this.currentCharacter =
-      this.characters.find((ch) => ch.id === targetId) || this.characters[0];
-
-    console.log("Game state reset:", this.gameState);
-    console.log("Current character:", this.currentCharacter);
+    console.log("🔄 Game State reset to default:", this.gameState);
+    console.log("🆕 Current Character set to:", this.currentCharacter.id);
   }
 
   update() {
