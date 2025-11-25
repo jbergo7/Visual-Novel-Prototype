@@ -46,7 +46,8 @@
       "character": "[player]",
       "pose": "neutral_fullbody",
       "x": "right -100",
-      "y": "center"
+      "y": "center",
+      "scale": 0.8
     }
   },
   "grocery": {
