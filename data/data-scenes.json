@@ -3,7 +3,7 @@
     "background": "home",
     "dialogues": [
       {
-        "speaker": "Narrator",
+        "speaker": "[player]",
         "text": "Siya ay nangupahan malapit sa kanyang paaralan at dito sinimulan ang kanyang kuwento.",
         "sprite": [
           {
