@@ -7,22 +7,30 @@ export class DialogueBox {
     this.textMinRatio = 0.06;
     this.textMaxRatio = 0.12;
 
-    // Typewriter state
+    // Typewriter
     this.fullText = "";
     this.displayText = "";
     this.charIndex = 0;
+    this.lastTime = 0;
+    this.speed = 35;
     this.isTyping = false;
 
-    this.lastTime = 0;
-    this.speed = 25; // ms per character
+    // Auto Mode
+    this.autoMode = false;
+
+    // Button position (computed per frame)
+    this.autoButton = { x: 0, y: 0, width: 130, height: 50 };
   }
 
-  /** Called every time a new dialogue line is shown */
-  setDialogue(speaker, text) {
-    this.speaker = speaker;
-    this.fullText = text;
+  toggleAuto() {
+    this.autoMode = !this.autoMode;
+  }
+
+  startTyping(newText) {
+    this.fullText = newText;
     this.displayText = "";
     this.charIndex = 0;
+    this.lastTime = 0;
     this.isTyping = true;
   }
 
@@ -37,22 +45,18 @@ export class DialogueBox {
     return false;
   }
 
-  /** Update typewriter animation every frame */
   updateTyping(delta) {
     if (!this.isTyping) return;
 
     this.lastTime += delta;
-
     if (this.lastTime >= this.speed) {
       this.lastTime = 0;
 
-      // Add next character
       if (this.charIndex < this.fullText.length) {
         this.charIndex++;
         this.displayText = this.fullText.substring(0, this.charIndex);
       }
 
-      // Finished typing
       if (this.charIndex >= this.fullText.length) {
         this.isTyping = false;
       }
@@ -61,64 +65,99 @@ export class DialogueBox {
 
   resolveSpeakerName(speaker) {
     if (speaker === "[player]") {
-      const char = this.core.currentCharacter;
-      return char?.name || "Player";
+      return this.core.currentCharacter?.name || "Player";
     }
     return speaker;
   }
 
-  render(ctx, speaker, text) {
-    // If the line changed → restart typewriter
-    if (this.fullText !== text) {
-      this.setDialogue(speaker, text);
+  // CLICK HANDLER for Auto button
+  handleClick(x, y) {
+    const btn = this.autoButton;
+
+    if (
+      x >= btn.x &&
+      x <= btn.x + btn.width &&
+      y >= btn.y &&
+      y <= btn.y + btn.height
+    ) {
+      this.toggleAuto();
+      return true;
     }
 
-    // Update animation
-    this.updateTyping(16.67); // ~60fps
+    return false;
+  }
+
+  render(ctx, speaker, text) {
+    // Detect new dialogue
+    if (this.fullText !== text) {
+      this.startTyping(text);
+    }
+
+    this.updateTyping(16.67);
 
     const canvas = this.core.canvas;
     const boxHeight = canvas.height * 0.25;
     const boxY = canvas.height - boxHeight;
 
-    // Box background
+    // Background
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, boxY, canvas.width, boxHeight);
 
-    // Speaker font
+    // Fonts
     const speakerFontSize = boxHeight * 0.12;
-    const clampedSpeakerFont = Math.max(
-      boxHeight * this.speakerMinRatio,
-      Math.min(speakerFontSize, boxHeight * this.speakerMaxRatio)
-    );
-
-    // Text font
     const textFontSize = boxHeight * 0.09;
-    const clampedTextFont = Math.max(
-      boxHeight * this.textMinRatio,
-      Math.min(textFontSize, boxHeight * this.textMaxRatio)
-    );
 
-    // Speaker name
-    const resolvedSpeaker = this.resolveSpeakerName(speaker);
     ctx.fillStyle = "#FFD700";
-    ctx.font = `${clampedSpeakerFont}px Arial`;
+    ctx.font = `${speakerFontSize}px Arial`;
     ctx.textAlign = "left";
-    ctx.textBaseline = "top";
+
+    const resolvedSpeaker = this.resolveSpeakerName(speaker);
     ctx.fillText(resolvedSpeaker, canvas.width * 0.05, boxY + boxHeight * 0.08);
 
-    // Dialogue text (typewritten)
+    // Dialogue text
     ctx.fillStyle = "#fff";
-    ctx.font = `${clampedTextFont}px Arial`;
-
+    ctx.font = `${textFontSize}px Arial`;
     const marginX = canvas.width * 0.05;
     const maxWidth = canvas.width - marginX * 2;
 
     const lines = this.wrapText(ctx, this.displayText, maxWidth);
-    const lineHeight = clampedTextFont * 1.2;
-
+    const lineHeight = textFontSize * 1.2;
     for (let i = 0; i < lines.length; i++) {
       ctx.fillText(lines[i], marginX, boxY + boxHeight * 0.3 + i * lineHeight);
     }
+
+    // 🔥 Responsive AUTO BUTTON (small, scaled to dialogue box)
+    const autoFontSize = textFontSize * 0.8; // maliit kaysa dialogue text
+    ctx.font = `${autoFontSize}px Arial`;
+
+    const btnPaddingX = autoFontSize * 0.8;
+    const btnPaddingY = autoFontSize * 0.4;
+
+    const label = this.autoMode ? "Auto ON" : "Auto";
+    const textMetrics = ctx.measureText(label);
+    const btnWidth = textMetrics.width + btnPaddingX * 2;
+    const btnHeight = autoFontSize + btnPaddingY * 2;
+
+    const btnX = canvas.width - btnWidth - canvas.width * 0.03;
+    const btnY = boxY - btnHeight - canvas.height * 0.01;
+
+    // store hitbox
+    this.autoButton = { x: btnX, y: btnY, width: btnWidth, height: btnHeight };
+
+    // background
+    ctx.fillStyle = this.autoMode ? "#00cc55" : "rgba(50,50,50,0.7)";
+    ctx.fillRect(btnX, btnY, btnWidth, btnHeight);
+
+    // outline
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btnX, btnY, btnWidth, btnHeight);
+
+    // text
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, btnX + btnWidth / 2, btnY + btnHeight / 2);
   }
 
   wrapText(ctx, text, maxWidth) {
@@ -126,19 +165,17 @@ export class DialogueBox {
     let line = "";
     const lines = [];
 
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + " ";
-      const testWidth = ctx.measureText(testLine).width;
-
-      if (testWidth > maxWidth && n > 0) {
+    for (let w of words) {
+      const test = line + w + " ";
+      if (ctx.measureText(test).width > maxWidth && line !== "") {
         lines.push(line.trim());
-        line = words[n] + " ";
+        line = w + " ";
       } else {
-        line = testLine;
+        line = test;
       }
     }
 
-    lines.push(line.trim());
+    if (line) lines.push(line.trim());
     return lines;
   }
 }

@@ -65,19 +65,10 @@ export class Scene {
     this.clickHandler = (e) => {
       if (this.core.saveLoadPopup?.visible) return;
       if (this.menuPopup.visible) return;
+
       const rect = this.core.canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
-
-      if (this.dialogueBox.handleClick(x, y)) {
-        return;
-      }
-
-      // If typing, skip
-      if (this.dialogueBox.isTyping) {
-        this.dialogueBox.skipTypewriter();
-        return;
-      }
 
       if (this.menuButton.containsPoint(x, y)) {
         this.menuPopup.toggle();
@@ -488,28 +479,6 @@ export class Scene {
     // This is a placeholder if you need to re-calculate logic on load
   }
 
-  autoNextDialogueIfReady() {
-    // Auto mode OFF? return.
-    if (!this.dialogueBox.autoMode) return;
-
-    // Is currently typing? wait.
-    if (this.dialogueBox.isTyping) return;
-
-    // If choices exist → STOP auto mode until user picks.
-    if (this.currentDialogue?.choices) return;
-
-    // Auto next after a small delay (e.g., 500ms)
-    if (!this._autoTimer) {
-      this._autoTimer = Date.now();
-      return;
-    }
-
-    if (Date.now() - this._autoTimer >= 500) {
-      this._autoTimer = null;
-      this.nextDialogue();
-    }
-  }
-
   async changeBackground(bgId, transition) {
     const bgCache = this.core.dataCache?.backgrounds;
     const bg = bgCache?.[bgId];
@@ -595,7 +564,5 @@ export class Scene {
     this.menuPopup.render(ctx);
   }
 
-  update() {
-    this.autoNextDialogueIfReady();
-  }
+  update() {}
 }
