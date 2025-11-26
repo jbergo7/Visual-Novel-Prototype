@@ -12,7 +12,7 @@ export class DialogueBox {
     this.displayText = "";
     this.charIndex = 0;
     this.lastTime = 0;
-    this.speed = 35;
+    this.speed = 20;
     this.isTyping = false;
 
     // Auto Mode

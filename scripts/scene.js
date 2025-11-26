@@ -504,7 +504,7 @@ export class Scene {
       return;
     }
 
-    if (Date.now() - this._autoTimer >= 500) {
+    if (Date.now() - this._autoTimer >= 1200) {
       this._autoTimer = null;
       this.nextDialogue();
     }
