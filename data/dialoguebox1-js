@@ -15,11 +15,8 @@ export class DialogueBox {
     this.speed = 20;
     this.isTyping = false;
 
-    // 🔥 NEW: Track when typing finished
-    this.typingFinishedTime = null;
-
     // Auto Mode
-    this.autoMode = true;
+    this.autoMode = false;
 
     // Button position (computed per frame)
     this.autoButton = { x: 0, y: 0, width: 130, height: 50 };
@@ -27,10 +24,6 @@ export class DialogueBox {
 
   toggleAuto() {
     this.autoMode = !this.autoMode;
-    // Reset timer when toggling to prevent instant skip if text is already shown
-    if (this.autoMode && !this.isTyping) {
-      this.typingFinishedTime = Date.now();
-    }
   }
 
   startTyping(newText) {
@@ -39,7 +32,6 @@ export class DialogueBox {
     this.charIndex = 0;
     this.lastTime = 0;
     this.isTyping = true;
-    this.typingFinishedTime = null; // 🔥 Reset timer start
   }
 
   /** FIRST CLICK → skip animation */
@@ -48,7 +40,6 @@ export class DialogueBox {
       this.displayText = this.fullText;
       this.charIndex = this.fullText.length;
       this.isTyping = false;
-      this.typingFinishedTime = Date.now(); // 🔥 Mark finished immediately
       return true; // skipped
     }
     return false;
@@ -68,7 +59,6 @@ export class DialogueBox {
 
       if (this.charIndex >= this.fullText.length) {
         this.isTyping = false;
-        this.typingFinishedTime = Date.now(); // 🔥 Capture completion time
       }
     }
   }
