@@ -140,31 +140,78 @@ export class DialogueBox {
     const boxHeight = canvas.height * 0.25;
     const boxY = canvas.height - boxHeight;
 
-    // Background
-    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    // --- Main Dialogue Box Background ---
+    ctx.fillStyle = "rgba(0,0,0,0.8)"; // Slightly darker for better contrast
     ctx.fillRect(0, boxY, canvas.width, boxHeight);
 
-    // Fonts
-    const speakerFontSize = boxHeight * 0.12;
-    const textFontSize = boxHeight * 0.09;
+    // Border/Stroke for Main Box (Optional, makes it look cleaner)
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, boxY);
+    ctx.lineTo(canvas.width, boxY); // Top border line only
+    ctx.stroke();
 
-    ctx.fillStyle = "#FFD700";
-    ctx.font = `${speakerFontSize}px Arial`;
-    ctx.textAlign = "left";
+    // Fonts Setup
+    const speakerFontSize = boxHeight * 0.14; // Slightly larger speaker font
+    const textFontSize = boxHeight * 0.1;
 
+    // --- SPEAKER NAME BOX (Floating above) ---
     const resolvedSpeaker = this.resolveSpeakerName(speaker);
-    ctx.fillText(resolvedSpeaker, canvas.width * 0.05, boxY + boxHeight * 0.08);
 
-    // Text
+    if (resolvedSpeaker) {
+      ctx.font = `bold ${speakerFontSize}px Arial`;
+      const speakerMetrics = ctx.measureText(resolvedSpeaker);
+
+      const speakerPaddingX = 30;
+      const speakerPaddingY = 10;
+      const speakerBoxWidth = speakerMetrics.width + speakerPaddingX * 2;
+      const speakerBoxHeight = speakerFontSize + speakerPaddingY * 2;
+
+      const speakerBoxX = canvas.width * 0.05; // 5% margin from left
+      // Position it exactly on top of the dialogue box border, slightly overlapping or just above
+      const speakerBoxY = boxY - speakerBoxHeight;
+
+      // Draw Speaker Box Background
+      ctx.fillStyle = "rgba(0,0,0,0.8)"; // Gold/Yellow background for speaker name
+      ctx.fillRect(speakerBoxX, speakerBoxY, speakerBoxWidth, speakerBoxHeight);
+
+      // Draw Speaker Box Border
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        speakerBoxX,
+        speakerBoxY,
+        speakerBoxWidth,
+        speakerBoxHeight
+      );
+
+      // Draw Speaker Name Text
+      ctx.fillStyle = "#fff"; // Black text on Gold background
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        resolvedSpeaker,
+        speakerBoxX + speakerBoxWidth / 2,
+        speakerBoxY + speakerBoxHeight / 2
+      );
+    }
+
+    // --- DIALOGUE TEXT ---
     ctx.fillStyle = "#fff";
     ctx.font = `${textFontSize}px Arial`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top"; // Reset baseline for multiline text
+
     const marginX = canvas.width * 0.05;
+    const textY = boxY + boxHeight * 0.15; // Padding from top of box
     const maxWidth = canvas.width - marginX * 2;
 
     const lines = this.wrapText(ctx, this.displayText, maxWidth);
-    const lineHeight = textFontSize * 1.2;
+    const lineHeight = textFontSize * 1.4; // More spacing between lines
+
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], marginX, boxY + boxHeight * 0.3 + i * lineHeight);
+      ctx.fillText(lines[i], marginX, textY + i * lineHeight);
     }
 
     // --------------------------------------
@@ -184,7 +231,9 @@ export class DialogueBox {
     const btnHeight = autoFontSize + btnPaddingY * 2;
 
     const ffX = canvas.width - ffWidth - canvas.width * 0.03;
-    const btnY = boxY - btnHeight - canvas.height * 0.01;
+
+    // Align buttons to the bottom-right, slightly up from edge
+    const btnY = boxY + boxHeight - btnHeight - canvas.height * 0.02;
 
     this.ffButton = { x: ffX, y: btnY, width: ffWidth, height: btnHeight };
 
