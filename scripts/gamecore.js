@@ -172,8 +172,8 @@ export class GameCore {
     this.currentCharacter =
       this.characters.find((ch) => ch.id === targetId) || this.characters[0];
 
-    console.log("Game state reset:", this.gameState);
-    console.log("Current character:", this.currentCharacter);
+    //console.log("Game state reset:", this.gameState);
+    //console.log("Current character:", this.currentCharacter);
   }
 
   update() {

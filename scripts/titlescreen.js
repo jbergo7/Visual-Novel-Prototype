@@ -249,18 +249,21 @@ export class TitleScreen {
   async continueGame() {
     const latest = this.getLatestSave();
 
-    console.log(latest.gameState);
+    //console.log(latest.gameState);
 
+    // Use runtime data if there is still exisitng
     if (this.core.hasRuntimeDataCache) {
       const runtimeHasProgress =
         this.core.gameState?.currentBackground?.active ||
         this.core.gameState?.currentScene?.active;
 
+      console.log(this.core.gameState);
       if (runtimeHasProgress) {
         this.unload();
         return this.resumeFromGameState(this.core.gameState);
       }
     } else {
+      // If browser refreshed or if there are no runtime data then use the existing localStorage
       if (!latest) {
         console.warn("⚠ Continue pressed but no save found.");
         return;
