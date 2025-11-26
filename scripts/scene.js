@@ -472,7 +472,7 @@ export class Scene {
     if (db.autoMode) {
       if (db.isTyping) return; // Wait for typing
 
-      const WAIT_TIME = 5000; // 5 seconds
+      const WAIT_TIME = 2000; // 5 seconds
       if (
         db.typingFinishedTime &&
         Date.now() - db.typingFinishedTime > WAIT_TIME
