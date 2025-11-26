@@ -69,7 +69,7 @@ export class Scene {
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
 
-      // Handle Auto Button Click
+      // Handle Auto/FF Button Click
       if (this.dialogueBox.handleClick(x, y)) {
         return;
       }
@@ -195,6 +195,13 @@ export class Scene {
         };
       }
       this.choicesBox.setChoices(obj.choices);
+
+      // 🔥 STOP Fast Forward on choices
+      if (this.dialogueBox.fastForwardMode) {
+        this.dialogueBox.fastForwardMode = false; // Auto-stop FF
+        console.log("Fast Forward stopped at choice.");
+      }
+
       this.core.updateGameState("scene", this.sceneId, this.currentLine);
       this.render(this.core.ctx);
       return;
@@ -433,27 +440,46 @@ export class Scene {
     // Re-application logic logic would go here
   }
 
-  // 🔥🔥🔥 NEW: AUTO NEXT LOGIC
+  // 🔥🔥🔥 UPDATED: AUTO & FAST FORWARD LOGIC
   autoNextDialogueIfReady() {
     const db = this.dialogueBox;
 
-    // 1. Check if Auto Mode is ON
-    if (!db.autoMode) return;
-
-    // 2. Wait until typing is completely finished
-    if (db.isTyping) return;
-
-    // 3. Stop if there are choices (player must choose)
+    // 1. Stop if choices exist
     if (this.choicesBox.choices.length > 0) return;
 
-    // 4. Check if enough time (5000ms) has passed since typing finished
-    const WAIT_TIME = 2000; // 5 seconds
-    if (
-      db.typingFinishedTime &&
-      Date.now() - db.typingFinishedTime > WAIT_TIME
-    ) {
-      db.typingFinishedTime = null; // Reset to avoid double trigger
-      this.nextDialogue();
+    // 2. Fast Forward Mode (Priority)
+    if (db.fastForwardMode) {
+      // If typing, skip instantly
+      if (db.isTyping) {
+        db.skipTypewriter();
+        return;
+      }
+
+      // Small delay (e.g., 100ms) just so it's not literally instant render loop
+      if (!this._autoTimer) {
+        this._autoTimer = Date.now();
+        return;
+      }
+
+      if (Date.now() - this._autoTimer >= 100) {
+        this._autoTimer = null;
+        this.nextDialogue();
+      }
+      return;
+    }
+
+    // 3. Auto Mode
+    if (db.autoMode) {
+      if (db.isTyping) return; // Wait for typing
+
+      const WAIT_TIME = 5000; // 5 seconds
+      if (
+        db.typingFinishedTime &&
+        Date.now() - db.typingFinishedTime > WAIT_TIME
+      ) {
+        db.typingFinishedTime = null;
+        this.nextDialogue();
+      }
     }
   }
 
