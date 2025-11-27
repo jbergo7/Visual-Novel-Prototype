@@ -24,7 +24,7 @@ export class DialogueBox {
     this.autoButton = { x: 0, y: 0, width: 0, height: 0 };
     this.ffButton = { x: 0, y: 0, width: 0, height: 0 };
 
-    // Profile Image Caching
+    // Avatar Image Caching
     this.lastSpeaker = null;
     this.activeAvatarImage = null;
     this.activeAvatarData = null;
@@ -154,7 +154,7 @@ export class DialogueBox {
     if (this.lastSpeaker !== speaker) {
       this.lastSpeaker = speaker;
       const charData = this.getSpeakerData(speaker);
-      this.activeAvatarData = charData?.profile_img || null;
+      this.activeAvatarData = charData?.avatar_img || null;
       this.activeAvatarImage = null;
 
       if (this.activeAvatarData) {
@@ -182,7 +182,7 @@ export class DialogueBox {
     // Global Left Margin
     const baseMarginX = canvas.width * 0.05;
 
-    // --- 5. Render Profile Image (POP-OUT LEFT) ---
+    // --- 5. Render Avatar Image (POP-OUT LEFT) ---
     let contentOffsetX = 0;
 
     if (

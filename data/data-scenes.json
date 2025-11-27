@@ -17,7 +17,7 @@
       },
       { "background": "kitchen" },
       {
-        "speaker": "Narrator",
+        "speaker": "[player]",
         "text": "Matapos magtungo sa kitchen ay agad siyang pumunta sa banyo.",
         "sprite": {
           "image": "assets/sprites/characters/andrea/andrea_neutral_multiple.png",
