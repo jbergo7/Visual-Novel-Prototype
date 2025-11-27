@@ -1,0 +1,17 @@
+{
+  "themeName": "Default_Dark",
+  "version": "1.0",
+  "colors": {
+    "primaryFont": "#FFFFFF",
+    "secondaryFont": "#CCCCCC",
+    "dialogueBoxBackground": "#1A1A1A",
+    "dialogueBoxBorder": "#444444",
+    "nameBoxBackground": "#333333"
+  },
+  "game-ui-settings": {
+    "fontSize": 12,
+    "fontFamily": "Arial, sans-serif",
+    "dialogueBoxOpacity": 0.9,
+    "dialogueBoxPadding": 20
+  }
+}

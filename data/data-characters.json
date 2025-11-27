@@ -2,6 +2,7 @@
   {
     "id": "andrea",
     "name": "Andrea",
+    "isPlayable": true,
     "avatar_img": [
       "assets/sprites/characters/character_sprite_sample.png",
       360,
@@ -16,6 +17,14 @@
   {
     "id": "mika",
     "name": "Mika",
+    "isPlayable": true,
+    "avatar_img": [
+      "assets/sprites/characters/character_sprite_sample.png",
+      1141,
+      43,
+      435,
+      534
+    ],
     "money": 80,
     "energy": 120
   },
