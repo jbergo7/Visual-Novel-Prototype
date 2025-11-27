@@ -229,7 +229,7 @@ export class DialogueBox {
     const gap = 10;
 
     // 1. FAST FORWARD BUTTON
-    const ffLabel = this.fastForwardMode ? "FFwd ON" : "FFwd";
+    const ffLabel = this.fastForwardMode ? "Skip" : "Skip";
     const ffMetrics = ctx.measureText(ffLabel);
     const ffWidth = ffMetrics.width + btnPaddingX * 2;
     const btnHeight = autoFontSize + btnPaddingY * 2;
