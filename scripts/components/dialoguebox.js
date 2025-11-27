@@ -14,23 +14,26 @@ export class DialogueBox {
     this.lastTime = 0;
     this.speed = 20;
     this.isTyping = false;
-
-    // Track when typing finished
     this.typingFinishedTime = null;
 
     // Modes
     this.autoMode = false;
     this.fastForwardMode = false;
 
-    // Button positions (computed per frame)
+    // Buttons
     this.autoButton = { x: 0, y: 0, width: 0, height: 0 };
     this.ffButton = { x: 0, y: 0, width: 0, height: 0 };
+
+    // Profile Image Caching
+    this.lastSpeaker = null;
+    this.activeAvatarImage = null;
+    this.activeAvatarData = null;
   }
 
   toggleAuto() {
     this.autoMode = !this.autoMode;
     if (this.autoMode) {
-      this.fastForwardMode = false; // Disable FF if Auto is on
+      this.fastForwardMode = false;
       if (!this.isTyping) this.typingFinishedTime = Date.now();
     }
   }
@@ -38,15 +41,13 @@ export class DialogueBox {
   toggleFastForward() {
     this.fastForwardMode = !this.fastForwardMode;
     if (this.fastForwardMode) {
-      this.autoMode = false; // Disable Auto if FF is on
-      // If FF is ON, we force skip typing immediately
+      this.autoMode = false;
       if (this.isTyping) this.skipTypewriter();
     }
   }
 
   startTyping(newText) {
     this.fullText = newText;
-    // If Fast Forward is ON, skip animation immediately
     if (this.fastForwardMode) {
       this.displayText = newText;
       this.charIndex = newText.length;
@@ -74,22 +75,17 @@ export class DialogueBox {
 
   updateTyping(delta) {
     if (!this.isTyping) return;
-
-    // Extra safety: If FF mode is toggled ON while typing, finish instantly
     if (this.fastForwardMode) {
       this.skipTypewriter();
       return;
     }
-
     this.lastTime += delta;
     if (this.lastTime >= this.speed) {
       this.lastTime = 0;
-
       if (this.charIndex < this.fullText.length) {
         this.charIndex++;
         this.displayText = this.fullText.substring(0, this.charIndex);
       }
-
       if (this.charIndex >= this.fullText.length) {
         this.isTyping = false;
         this.typingFinishedTime = Date.now();
@@ -102,6 +98,13 @@ export class DialogueBox {
       return this.core.currentCharacter?.name || "Player";
     }
     return speaker;
+  }
+
+  getSpeakerData(speaker) {
+    if (speaker === "[player]") {
+      return this.core.currentCharacter;
+    }
+    return this.core.characters.find((c) => c.name === speaker);
   }
 
   handleClick(x, y) {
@@ -131,56 +134,125 @@ export class DialogueBox {
   }
 
   render(ctx, speaker, text) {
+    // 1. Update Text Logic
     if (this.fullText !== text) {
       this.startTyping(text);
     }
-
     this.updateTyping(16.67);
 
+    // 2. Setup Dimensions
     const canvas = this.core.canvas;
-    const boxHeight = canvas.height * 0.25;
-    const boxY = canvas.height - boxHeight;
+    const boxHeight = canvas.height * 0.25; // Main dialogue box height
+    const boxY = canvas.height - boxHeight; // Top edge of dialogue box
 
-    // --- Main Dialogue Box Background ---
+    // Calculate Font & Speaker Box Dimensions FIRST (Needed for Avatar alignment)
+    const speakerFontSize = boxHeight * 0.14;
+    const speakerPaddingY = speakerFontSize * 0.3;
+    const speakerBoxHeight = speakerFontSize + speakerPaddingY * 2;
+
+    // --- 3. Avatar Data Logic ---
+    if (this.lastSpeaker !== speaker) {
+      this.lastSpeaker = speaker;
+      const charData = this.getSpeakerData(speaker);
+      this.activeAvatarData = charData?.profile_img || null;
+      this.activeAvatarImage = null;
+
+      if (this.activeAvatarData) {
+        this.activeAvatarImage = new Image();
+        const src = Array.isArray(this.activeAvatarData)
+          ? this.activeAvatarData[0]
+          : this.activeAvatarData;
+        this.activeAvatarImage.src = src;
+      }
+    }
+
+    // --- 4. Draw Main Dialogue Box Background ---
+    // Draw this first so the avatar sits ON TOP of the background
     ctx.fillStyle = "rgba(0,0,0,0.8)";
     ctx.fillRect(0, boxY, canvas.width, boxHeight);
 
-    // Border/Stroke for Main Box
+    // Draw Main Border
     ctx.strokeStyle = "#fff";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, boxY);
-    ctx.lineTo(canvas.width, boxY); // Top border line only
+    ctx.lineTo(canvas.width, boxY);
     ctx.stroke();
 
-    // Fonts Setup
-    const speakerFontSize = boxHeight * 0.14; // Scales with boxHeight
-    const textFontSize = boxHeight * 0.1;
+    // Global Left Margin
+    const baseMarginX = canvas.width * 0.05;
 
-    // --- SPEAKER NAME BOX (Floating above) ---
+    // --- 5. Render Profile Image (POP-OUT LEFT) ---
+    let contentOffsetX = 0;
+
+    if (
+      this.activeAvatarImage &&
+      this.activeAvatarImage.complete &&
+      this.activeAvatarData
+    ) {
+      // 泙 Logic: Align Top of Avatar to Top of Speaker Box
+      // Speaker Box sits exactly above BoxY.
+      const avatarTopY = boxY - speakerBoxHeight;
+
+      // Calculate Height: From Top of Speaker Box down to Bottom of Screen (minus padding)
+      // Or simply: DialogueBox Height + SpeakerBox Height
+      const avatarHeight = boxHeight + speakerBoxHeight;
+
+      // Keep it square or adjust width based on preference
+      const avatarWidth = avatarHeight;
+
+      const avatarX = baseMarginX;
+
+      // Draw Avatar (Walang Border, Nakapatong sa Box)
+      if (Array.isArray(this.activeAvatarData)) {
+        const [_, sx, sy, sw, sh] = this.activeAvatarData;
+        ctx.drawImage(
+          this.activeAvatarImage,
+          sx,
+          sy,
+          sw,
+          sh,
+          avatarX,
+          avatarTopY, // Starts higher up!
+          avatarWidth,
+          avatarHeight
+        );
+      } else {
+        ctx.drawImage(
+          this.activeAvatarImage,
+          avatarX,
+          avatarTopY,
+          avatarWidth,
+          avatarHeight
+        );
+      }
+
+      // 泙 Removed: ctx.strokeRect (No more white border on image)
+
+      // Set Offset for Text & Name Box
+      const gap = canvas.width * 0.02;
+      contentOffsetX = avatarWidth + gap;
+    }
+
+    // --- 6. Speaker Name Box ---
     const resolvedSpeaker = this.resolveSpeakerName(speaker);
 
     if (resolvedSpeaker) {
       ctx.font = `bold ${speakerFontSize}px Arial`;
       const speakerMetrics = ctx.measureText(resolvedSpeaker);
 
-      // 🔥 FIX: Dynamic Padding based on Font Size
-      // Dati naka-fix sa 30 at 10, ngayon porsyento na ng font size.
       const speakerPaddingX = speakerFontSize * 0.8;
-      const speakerPaddingY = speakerFontSize * 0.3;
 
       const speakerBoxWidth = speakerMetrics.width + speakerPaddingX * 2;
-      const speakerBoxHeight = speakerFontSize + speakerPaddingY * 2;
+      // Height is already calculated above as `speakerBoxHeight`
 
-      // Maintain left clamping (aligned with margin)
-      const speakerBoxX = canvas.width * 0.05;
+      // Align box relative to content offset
+      const speakerBoxX = baseMarginX + contentOffsetX;
       const speakerBoxY = boxY - speakerBoxHeight;
 
-      // Draw Speaker Box Background
       ctx.fillStyle = "rgba(0,0,0,0.8)"; // Gold/Yellow
       ctx.fillRect(speakerBoxX, speakerBoxY, speakerBoxWidth, speakerBoxHeight);
 
-      // Draw Speaker Box Border
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 2;
       ctx.strokeRect(
@@ -190,7 +262,6 @@ export class DialogueBox {
         speakerBoxHeight
       );
 
-      // Draw Speaker Name Text
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -201,42 +272,44 @@ export class DialogueBox {
       );
     }
 
-    // --- DIALOGUE TEXT ---
+    // --- 7. Dialogue Text ---
+    const textFontSize = boxHeight * 0.1;
     ctx.fillStyle = "#fff";
     ctx.font = `${textFontSize}px Arial`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
 
-    const marginX = canvas.width * 0.05;
+    const textX = baseMarginX + contentOffsetX;
     const textY = boxY + boxHeight * 0.15;
-    const maxWidth = canvas.width - marginX * 2;
+
+    // Remaining width calculation
+    const maxWidth = canvas.width - baseMarginX - contentOffsetX - baseMarginX;
 
     const lines = this.wrapText(ctx, this.displayText, maxWidth);
     const lineHeight = textFontSize * 1.4;
 
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], marginX, textY + i * lineHeight);
+      ctx.fillText(lines[i], textX, textY + i * lineHeight);
     }
 
-    // --------------------------------------
-    // BUTTONS RENDER (Auto & Fast Forward)
-    // --------------------------------------
-    const autoFontSize = textFontSize * 0.8;
-    ctx.font = `${autoFontSize}px Arial`;
+    // --- 8. Buttons ---
+    this.renderButtons(ctx, canvas, boxY, boxHeight, textFontSize);
+  }
 
+  renderButtons(ctx, canvas, boxY, boxHeight, baseFontSize) {
+    const autoFontSize = baseFontSize * 0.8;
+    ctx.font = `${autoFontSize}px Arial`;
     const btnPaddingX = autoFontSize * 0.8;
     const btnPaddingY = autoFontSize * 0.4;
     const gap = 10;
 
-    // 1. FAST FORWARD BUTTON
-    const ffLabel = this.fastForwardMode ? "Skip" : "Skip";
+    // Skip Button
+    const ffLabel = "Skip";
     const ffMetrics = ctx.measureText(ffLabel);
     const ffWidth = ffMetrics.width + btnPaddingX * 2;
     const btnHeight = autoFontSize + btnPaddingY * 2;
 
     const ffX = canvas.width - ffWidth - canvas.width * 0.03;
-
-    // Align buttons to the bottom-right
     const btnY = boxY + boxHeight - btnHeight - canvas.height * 0.02;
 
     this.ffButton = { x: ffX, y: btnY, width: ffWidth, height: btnHeight };
@@ -252,11 +325,10 @@ export class DialogueBox {
     ctx.textBaseline = "middle";
     ctx.fillText(ffLabel, ffX + ffWidth / 2, btnY + btnHeight / 2);
 
-    // 2. AUTO BUTTON
+    // Auto Button
     const autoLabel = this.autoMode ? "Auto ON" : "Auto";
     const autoMetrics = ctx.measureText(autoLabel);
     const autoWidth = autoMetrics.width + btnPaddingX * 2;
-
     const autoX = ffX - autoWidth - gap;
 
     this.autoButton = {
@@ -288,7 +360,6 @@ export class DialogueBox {
         line = test;
       }
     }
-
     if (line) lines.push(line.trim());
     return lines;
   }

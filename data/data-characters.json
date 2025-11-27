@@ -2,6 +2,13 @@
   {
     "id": "andrea",
     "name": "Andrea",
+    "profile_img": [
+      "assets/sprites/characters/character_sprite_sample.png",
+      360,
+      44,
+      411,
+      512
+    ],
     "money": 100,
     "energy": 100,
     "max_energy": 100
