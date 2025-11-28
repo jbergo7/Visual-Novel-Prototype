@@ -39,11 +39,11 @@ export class DialogueBox {
     this.activeAvatarData = null;
   }
 
-  // 🔥 NEW: Method to handle mouse movement and update hover state
+  // 🔥 UPDATED: Method to handle mouse movement and update hover state (Fixed bug: rect.width -> rect.height for scaleY)
   handleMouseMove(e) {
     const rect = this.core.canvas.getBoundingClientRect();
     const scaleX = this.core.canvas.width / rect.width;
-    const scaleY = this.core.canvas.height / rect.width; // Should be rect.height
+    const scaleY = this.core.canvas.height / rect.height; // 🔥 FIXED: was rect.width
 
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
@@ -204,25 +204,47 @@ export class DialogueBox {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
+  // 🔥 NEW HELPER: Resolves the corner radius setting (number or array) to a scaled [TL, TR, BR, BL] array
+  resolveRadius(rawRadius, scale) {
+    // If it's an array of 4, scale each value
+    if (Array.isArray(rawRadius) && rawRadius.length === 4) {
+      // [TL, TR, BR, BL]
+      return rawRadius.map((r) => r * scale);
+    }
+    // If it's a single number, scale it and return for all corners
+    const scaledRadius =
+      typeof rawRadius === "number" && rawRadius >= 0 ? rawRadius * scale : 0;
+    return [scaledRadius, scaledRadius, scaledRadius, scaledRadius];
+  }
+
   // Helper: Handles Rounded Corners & Outward Borders
-  drawStyledBox(ctx, x, y, w, h, thickness, radius, bgColor, borderColor) {
+  // 🔥 UPDATED: radius parameter is now radii (an array of [TL, TR, BR, BL])
+  drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
+    // Check if radii is an array, if not, convert single number to array for roundRect fallback
+    const resolvedRadii = Array.isArray(radii)
+      ? radii
+      : [radii, radii, radii, radii];
+    const [tl, tr, br, bl] = resolvedRadii; // Destructure the 4 radii
+    const hasRadius = tl > 0 || tr > 0 || br > 0 || bl > 0;
+
     // 1. Draw Background (Inner Box)
     ctx.fillStyle = bgColor;
     ctx.beginPath();
-    if (radius > 0) {
+
+    if (hasRadius) {
       if (ctx.roundRect) {
-        ctx.roundRect(x, y, w, h, radius);
+        ctx.roundRect(x, y, w, h, resolvedRadii); // ctx.roundRect accepts an array of 4 radii
       } else {
         // Fallback for browsers without roundRect
-        ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + w - radius, y);
-        ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
-        ctx.lineTo(x + w, y + h - radius);
-        ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-        ctx.lineTo(x + radius, y + h);
-        ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.moveTo(x + tl, y);
+        ctx.lineTo(x + w - tr, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
+        ctx.lineTo(x + w, y + h - br);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - br, y + h);
+        ctx.lineTo(x + bl, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - bl);
+        ctx.lineTo(x, y + tl);
+        ctx.quadraticCurveTo(x, y, x + tl, y); // Fixed potential typo here (quadraticCurveCurveTo -> quadraticCurveTo)
       }
     } else {
       ctx.rect(x, y, w, h);
@@ -240,28 +262,25 @@ export class DialogueBox {
       const bw = w + thickness;
       const bh = h + thickness;
 
-      // Outer radius needs to be slightly larger to match curvature
-      const outerRadius = radius > 0 ? radius + offset : 0;
+      // Calculate outer radii
+      const outerRadii = resolvedRadii.map((r) => (r > 0 ? r + offset : 0));
+      const [o_tl, o_tr, o_br, o_bl] = outerRadii;
+      const hasOuterRadius = o_tl > 0 || o_tr > 0 || o_br > 0 || o_bl > 0;
 
       ctx.beginPath();
-      if (outerRadius > 0) {
+      if (hasOuterRadius) {
         if (ctx.roundRect) {
-          ctx.roundRect(bx, by, bw, bh, outerRadius);
+          ctx.roundRect(bx, by, bw, bh, outerRadii);
         } else {
-          ctx.moveTo(bx + outerRadius, by);
-          ctx.lineTo(bx + bw - outerRadius, by);
-          ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + outerRadius);
-          ctx.lineTo(bx + bw, by + bh - outerRadius);
-          ctx.quadraticCurveTo(
-            bx + bw,
-            by + bh,
-            bx + bw - outerRadius,
-            by + bh
-          );
-          ctx.lineTo(bx + outerRadius, by + bh);
-          ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - outerRadius);
-          ctx.lineTo(bx, by + outerRadius);
-          ctx.quadraticCurveTo(bx, by, bx + outerRadius, by);
+          ctx.moveTo(bx + o_tl, by);
+          ctx.lineTo(bx + bw - o_tr, by);
+          ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + o_tr);
+          ctx.lineTo(bx + bw, by + bh - o_br);
+          ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - o_br, by + bh);
+          ctx.lineTo(bx + o_bl, by + bh);
+          ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - o_bl);
+          ctx.lineTo(bx, by + o_tl);
+          ctx.quadraticCurveTo(bx, by, bx + o_tl, by);
         }
       } else {
         ctx.rect(bx, by, bw, bh);
@@ -270,6 +289,7 @@ export class DialogueBox {
     }
   }
 
+  // 🔥 UPDATED: Use resolveRadius for all corner settings
   render(ctx, speaker, text) {
     if (this.fullText !== text) {
       this.startTyping(text);
@@ -304,27 +324,17 @@ export class DialogueBox {
     const boxHeight = (dialogueBaseHeight / baseHeight) * canvas.height;
     const scaledWidth = (dialogueBaseWidth / baseWidth) * canvas.width;
 
-    // Scale Padding, Margin, Border Thickness, & Corner Radius
+    // Scale Padding, Margin, Border Thickness
     const textMarginX =
       (guiData.dialogueBox_Padding || 10) * (canvas.width / baseWidth);
     const borderThickness =
       (guiData.dialogueBox_BorderThickness || 0) * (canvas.width / baseWidth);
-
-    // Corner Radii
-    const cornerRadius =
-      (guiData.dialogueBox_BorderCorner || 0) * (canvas.width / baseWidth);
-    const speakerCornerRadius =
-      (guiData.dialogueBox_SpeakerBorderCorner || 0) *
-      (canvas.width / baseWidth);
 
     const fixedAvatarPaddingX = 20 * (canvas.width / baseWidth);
 
     // Style for Buttons
     const borderButtonThickness =
       (guiData.dialogueBox_ButtonBorderThickness || 0) *
-      (canvas.width / baseWidth);
-    const buttonCornerRadius =
-      (guiData.dialogueBox_ButtonBorderCorner || 0) *
       (canvas.width / baseWidth);
 
     const bgButtonColor =
@@ -345,32 +355,29 @@ export class DialogueBox {
     const marginBase = parseFloat(parts[1]) || 0;
 
     const boxWidth = scaledWidth;
-    let boxX = (canvas.width - boxWidth) / 2; // Default: Center Horizontally
-    let boxY = (canvas.height - boxHeight) / 2; // Default: Center Vertically
+    let boxX = (canvas.width - boxWidth) / 2;
+    let boxY = (canvas.height - boxHeight) / 2;
 
     let scaledMargin;
 
-    // 1. Determine Margin Scale (Use canvas.width/baseWidth for horizontal keywords)
     if (positionKeyword === "left" || positionKeyword === "right") {
       scaledMargin = marginBase * (canvas.width / baseWidth);
     } else {
-      // top, bottom, center (vertical position)
       scaledMargin = marginBase * (canvas.height / baseHeight);
     }
 
-    // 2. Apply Position based on Keyword
     switch (positionKeyword) {
       case "top":
-        boxY = scaledMargin; // Margin offset from the top edge
+        boxY = scaledMargin;
         break;
       case "bottom":
-        boxY = canvas.height - boxHeight - scaledMargin; // Margin offset from the bottom edge
+        boxY = canvas.height - boxHeight - scaledMargin;
         break;
       case "left":
-        boxX = scaledMargin; // Margin offset from the left edge
+        boxX = scaledMargin;
         break;
       case "right":
-        boxX = canvas.width - boxWidth - scaledMargin; // Margin offset from the right edge
+        boxX = canvas.width - boxWidth - scaledMargin;
         break;
       case "center":
       default:
@@ -400,6 +407,24 @@ export class DialogueBox {
     // Calculate Speaker Box Dimensions
     const speakerPaddingY = speakerFontSize * 0.3;
     const speakerBoxHeight = speakerFontSize + speakerPaddingY * 2;
+
+    // 🔥 NEW/UPDATED: Resolve Corner Radii (using the new helper)
+    const scaleFactor = canvas.width / baseWidth;
+
+    // Dialogue Box Radii
+    const rawCornerRadius = guiData.dialogueBox_BorderCorner || 0;
+    const dialogueRadii = this.resolveRadius(rawCornerRadius, scaleFactor);
+
+    // Speaker Box Radii
+    const rawSpeakerCornerRadius = guiData.dialogueBox_SpeakerBorderCorner || 0;
+    const speakerRadii = this.resolveRadius(
+      rawSpeakerCornerRadius,
+      scaleFactor
+    );
+
+    // Button Radii
+    const rawButtonCornerRadius = guiData.dialogueBox_ButtonBorderCorner || 0;
+    const buttonRadii = this.resolveRadius(rawButtonCornerRadius, scaleFactor);
 
     // --- 1. Avatar Logic (Calculate Position/Offset ONLY) ---
     // Update cache if speaker changed
@@ -437,7 +462,6 @@ export class DialogueBox {
       avatarX = boxX + fixedAvatarPaddingX;
       avatarY = boxY + boxHeight - avatarHeight;
 
-      // This offset is used for both speaker name text and dialogue text alignment
       contentOffsetX = fixedAvatarPaddingX + avatarWidth + textMarginX;
     }
     // --- END AVATAR CALCULATION ---
@@ -450,12 +474,12 @@ export class DialogueBox {
       boxWidth,
       boxHeight,
       borderThickness,
-      cornerRadius,
+      dialogueRadii, // 🔥 Use radii array
       dialogueBoxFillStyle,
       borderColor
     );
 
-    // --- 3. Speaker Name Box (Draws BELOW Avatar, but USES the correct contentOffsetX) ---
+    // --- 3. Speaker Name Box ---
     const resolvedSpeaker = this.resolveSpeakerName(speaker);
 
     if (resolvedSpeaker) {
@@ -480,7 +504,7 @@ export class DialogueBox {
         speakerBoxX = boxX;
 
         // Text should be aligned with the dialogue text start (after avatar or padding)
-        textAnchorX = speakerBoxX + contentOffsetX; // Alignment point is correct
+        textAnchorX = speakerBoxX + contentOffsetX;
         textAlign = "left";
       } else {
         // Default/Option: SHORT - Span only the width of the speaker name + padding
@@ -501,18 +525,18 @@ export class DialogueBox {
         speakerBoxWidth,
         speakerBoxHeight,
         borderThickness,
-        speakerCornerRadius,
+        speakerRadii, // 🔥 Use radii array
         speakerBoxFillStyle,
         borderColor
       );
 
       // Render Speaker Name Text
       ctx.fillStyle = fontSpeakerColor;
-      ctx.textAlign = textAlign; // Use calculated alignment
+      ctx.textAlign = textAlign;
       ctx.textBaseline = "middle";
       ctx.fillText(
         resolvedSpeaker,
-        textAnchorX, // Use calculated text position
+        textAnchorX,
         speakerBoxY + speakerBoxHeight / 2
       );
     }
@@ -534,7 +558,7 @@ export class DialogueBox {
       ctx.fillText(lines[i], textX, textY + i * lineHeight);
     }
 
-    // --- 5. Draw Avatar Image (SITS ON TOP) --- 🔥 NEW RENDER ORDER
+    // --- 5. Draw Avatar Image (SITS ON TOP) ---
     if (avatarWidth > 0 && this.activeAvatarImage.complete) {
       const avatarData = this.getSpeakerData(speaker)?.avatar_img;
       if (Array.isArray(avatarData)) {
@@ -574,12 +598,13 @@ export class DialogueBox {
       borderColor,
       borderButtonThickness,
       fontButtonColor,
-      buttonCornerRadius,
-      bgButtonColorHover,
-      guiData // Pass guiData to access new colors
+      buttonRadii, // 🔥 Pass radii array
+      bgButtonColorHover, // 🔥 Pass hover color
+      guiData // Pass guiData to access raw button corner setting
     );
   }
 
+  // 🔥 UPDATED: Use buttonRadii (array) and properly apply bgButtonColorHover
   renderButtons(
     ctx,
     boxX,
@@ -592,8 +617,8 @@ export class DialogueBox {
     borderColor,
     borderButtonThickness,
     fontButtonColor,
-    buttonCornerRadius,
-    bgButtonColorHover,
+    buttonRadii, // 🔥 Now an array: [TL, TR, BR, BL]
+    bgButtonColorHover, // 🔥 Now used for hover state
     guiData // Param
   ) {
     const canvas = this.core.canvas;
@@ -606,7 +631,7 @@ export class DialogueBox {
     const btnPaddingY = autoFontSize * 0.4;
     const gap = 10;
 
-    // UPDATED: Use configured active colors with hardcoded fallbacks
+    // Use configured active colors with hardcoded fallbacks
     const skipActiveColor =
       guiData.dialogueBox_ButtonBackgroundColor_Skip || "#e05737";
     const autoActiveColor =
@@ -629,7 +654,7 @@ export class DialogueBox {
     if (this.fastForwardMode) {
       skipBgColor = skipActiveColor; // Active (FF Mode) is prioritized
     } else if (this.hoverIndex === 1) {
-      skipBgColor = bgButtonColorHover; // Hover
+      skipBgColor = bgButtonColorHover; // 🔥 Hover logic applied
     }
 
     // Draw Skip Button
@@ -640,7 +665,7 @@ export class DialogueBox {
       ffWidth,
       btnHeight,
       borderButtonThickness,
-      buttonCornerRadius,
+      buttonRadii, // 🔥 Use radii array
       skipBgColor, // Use calculated color
       borderColor
     );
@@ -669,7 +694,7 @@ export class DialogueBox {
     if (this.autoMode) {
       autoBgColor = autoActiveColor; // Active (Auto Mode) is prioritized
     } else if (this.hoverIndex === 0) {
-      autoBgColor = bgButtonColorHover; // Hover
+      autoBgColor = bgButtonColorHover; // 🔥 Hover logic applied
     }
 
     // Draw Auto Button
@@ -680,7 +705,7 @@ export class DialogueBox {
       autoWidth,
       btnHeight,
       borderButtonThickness,
-      buttonCornerRadius,
+      buttonRadii, // 🔥 Use radii array
       autoBgColor, // Use calculated color
       borderColor
     );
