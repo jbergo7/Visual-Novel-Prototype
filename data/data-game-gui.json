@@ -46,6 +46,13 @@
       21,
       38,
       67
+    ],
+    "dialogueBox_BackgroundImg": [
+      "assets/sprites/gameui/dialogue-sprite.png",
+      1,
+      164,
+      1017,
+      295
     ]
   },
   "gui_dialogueChoice": {}

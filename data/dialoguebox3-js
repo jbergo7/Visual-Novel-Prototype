@@ -29,7 +29,7 @@ export class DialogueBox {
 
     this.lastSpeaker = null;
     this.activeAvatarImage = null;
-    this.activeAvatarData = null; // Caching for all sprite images (speaker box parts, main dialogue bg)
+    this.activeAvatarData = null; // Caching for all sprite images (speaker box parts, main dialogue bg) 🔥 RENAMED/ADJUSTED
 
     this.imageCache = {}; // Cache: { 'path/to/image.png': ImageObject } // Speaker Box Sprite Data
 
@@ -37,22 +37,21 @@ export class DialogueBox {
       left: null,
       center: null,
       right: null,
-    }; // Dialogue Box Background Image Data
+    }; // Dialogue Box Background Image Data 🔥 NEW
 
     this.dialogueBgImageCache = {
       data: null, // Stores the [path, sx, sy, sw, sh] array or string path
       image: null, // Stores the Image object
     };
 
-    // Set to track images that permanently failed to load
+    // 🔥 NEW: Set to track images that permanently failed to load
     this.failedImages = new Set();
-  }
+  } // HELPER: Loads an image into the cache if not already present
 
-  // HELPER: Loads an image into the cache if not already present
   _loadImage(src) {
     if (!src) return null;
 
-    // If already marked as failed, stop trying and return null (triggers fallback)
+    // 🔥 NEW: If already marked as failed, stop trying and return null (triggers fallback)
     if (this.failedImages.has(src)) {
       return null;
     }
@@ -62,43 +61,15 @@ export class DialogueBox {
     }
 
     const img = new Image();
-
-    // 1. ASYNCHRONOUS Error Handler: Humahawak sa 404/network errors.
+    img.src = src;
     img.onerror = () => {
-      console.error(
-        "[DialogueBox] Failed to load image (404/network error):",
-        src
-      );
-
-      // Tanggalin ang entry sa cache at markahan bilang failed.
-      delete this.imageCache[src];
-      this.failedImages.add(src);
-
-      // KRITIKAL NA PAGBABAGO: Kung ang broken image object na ito
-      // ang kasalukuyang nakalagay sa dialogue box cache, NU-LLIFY agad natin ito.
-      if (this.dialogueBgImageCache.image === img) {
-        this.dialogueBgImageCache.image = null; // Forces immediate color fallback
-      }
+      console.error("Failed to load image:", src);
+      delete this.imageCache[src]; // Remove failed entry
+      this.failedImages.add(src); // 🔥 NEW: Mark the path as failed
     };
-
-    // 2. SYNCHRONOUS Error Handler: Humahawak sa mga immediate errors sa pag-assign ng src. (try...catch)
-    try {
-      img.src = src;
-    } catch (e) {
-      console.error(
-        "[DialogueBox] Synchronous error trying to set image source:",
-        src,
-        e
-      );
-      // Pilitin na mag-fail agad at ibalik ang null
-      this.failedImages.add(src);
-      return null;
-    }
-
-    // Walang synchronous error, i-cache at ibalik.
     this.imageCache[src] = img;
     return img;
-  }
+  } // HELPER: Ensures data and loads image for the main dialogue box background 🔥 NEW
 
   _ensureDialogueBgImage(guiData) {
     const bgData = guiData.dialogueBox_BackgroundImg || null; // Check if data is new or changed
@@ -117,7 +88,7 @@ export class DialogueBox {
       if (src) {
         this.dialogueBgImageCache.image = this._loadImage(src);
       } else {
-        this.dialogueBgImageCache.image = null; // Explicitly set to null if no source
+        this.dialogueBgImageCache.image = null; // 🔥 NEW: Explicitly set to null if no source
       }
     }
   } // Ensures data and loads images for all three speaker box pieces
@@ -140,7 +111,7 @@ export class DialogueBox {
     if (this.speakerSpriteData.right) {
       this._loadImage(this.speakerSpriteData.right[0]);
     }
-  } // UPDATED: Function to draw the speaker box using TILING with robust C-C OVERLAP
+  } // 🔥 UPDATED: Function to draw the speaker box using TILING with robust C-C OVERLAP
 
   drawSpeakerSpriteBox(ctx, boxX, boxY, boxWidth, boxHeight, spriteData) {
     const leftData = spriteData.left;
@@ -597,7 +568,7 @@ export class DialogueBox {
       speakerBoxHeight = speakerFontSize * 1.3 + speakerPaddingY * 2;
     } // Load Speaker Sprite Image Data and Images
 
-    this._ensureSpeakerSpriteData(guiData); // Load Main Dialogue Box Image Data
+    this._ensureSpeakerSpriteData(guiData); // Load Main Dialogue Box Image Data 🔥 NEW
 
     this._ensureDialogueBgImage(guiData); // Resolve Corner Radii
 
@@ -649,7 +620,7 @@ export class DialogueBox {
       avatarY = boxY + boxHeight - avatarHeight;
 
       contentOffsetX = fixedAvatarPaddingX + avatarWidth + textMarginX;
-    } // --- END AVATAR CALCULATION --- // --- 2. Draw Main Dialogue Box UPDATED for Image Background ---
+    } // --- END AVATAR CALCULATION --- // --- 2. Draw Main Dialogue Box 🔥 UPDATED for Image Background ---
     const bgImage = this.dialogueBgImageCache.image;
     const bgData = this.dialogueBgImageCache.data;
 
