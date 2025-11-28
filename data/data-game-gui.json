@@ -6,7 +6,7 @@
   "gui_dialoguebox": {
     "dialogueBox_Opacity": 0.9,
     "dialogueBox_Padding": 60,
-    "dialogueBox_BottomMargin": 50,
+    "dialogueBox_Position": "bottom 50",
     "dialogueBox_Width": 1020,
     "dialogueBox_Hieght": 300,
     "dialogueBox_BorderThickness": 10,

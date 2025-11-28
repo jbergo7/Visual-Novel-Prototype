@@ -306,7 +306,8 @@ export class DialogueBox {
     // Scale Padding, Margin, Border Thickness, & Corner Radius
     const textMarginX =
       (guiData.dialogueBox_Padding || 10) * (canvas.width / baseWidth);
-    // REMOVED: dialogueBox_BottomMargin is replaced by dialogueBox_Position
+    const bottomMargin =
+      (guiData.dialogueBox_BottomMargin || 0) * (canvas.height / baseHeight);
     const borderThickness =
       (guiData.dialogueBox_BorderThickness || 0) * (canvas.width / baseWidth);
 
@@ -335,55 +336,10 @@ export class DialogueBox {
     const bgButtonColorHover =
       guiData.dialogueBox_ButtonBackgroundColor_Hover || bgButtonColor;
 
-    // --- 🔥 UPDATED: Calculate Box Position (boxX, boxY) based on dialogueBox_Position ---
-    const positionString = guiData.dialogueBox_Position || "bottom 0";
-    const parts = positionString
-      .split(" ")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const positionKeyword = parts[0]?.toLowerCase() || "bottom";
-    const marginBase = parseFloat(parts[1]) || 0;
-
+    // Centering the box & Applying Bottom Margin
     const boxWidth = scaledWidth;
-    let boxX = (canvas.width - boxWidth) / 2; // Default: Center Horizontally
-    let boxY = (canvas.height - boxHeight) / 2; // Default: Center Vertically
-
-    let scaledMargin;
-
-    // 1. Determine Margin Scale (Use canvas.width/baseWidth for horizontal keywords)
-    if (positionKeyword === "left" || positionKeyword === "right") {
-      scaledMargin = marginBase * (canvas.width / baseWidth);
-    } else {
-      // top, bottom, center (vertical position)
-      scaledMargin = marginBase * (canvas.height / baseHeight);
-    }
-
-    // 2. Apply Position based on Keyword
-    switch (positionKeyword) {
-      case "top":
-        boxY = scaledMargin; // Margin offset from the top edge
-        // boxX remains centered horizontally (default)
-        break;
-      case "bottom":
-        boxY = canvas.height - boxHeight - scaledMargin; // Margin offset from the bottom edge
-        // boxX remains centered horizontally (default)
-        break;
-      case "left":
-        boxX = scaledMargin; // Margin offset from the left edge
-        // boxY remains centered vertically (default)
-        break;
-      case "right":
-        boxX = canvas.width - boxWidth - scaledMargin; // Margin offset from the right edge
-        // boxY remains centered vertically (default)
-        break;
-      case "center":
-      default:
-        // Center Horizontally (default for boxX)
-        // Center Vertically, then apply margin as vertical offset
-        boxY = (canvas.height - boxHeight) / 2 + scaledMargin;
-        break;
-    }
-    // --- 🔥 END UPDATED POSITION LOGIC ---
+    const boxX = (canvas.width - boxWidth) / 2;
+    const boxY = canvas.height - boxHeight - bottomMargin;
 
     // Get Colors
     const bgColor = guiData.dialogueBox_BackgroundColor || "#1A1A1A";
