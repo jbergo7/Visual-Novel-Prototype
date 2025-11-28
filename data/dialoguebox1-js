@@ -14,8 +14,6 @@ export class DialogueBox {
     this.lastTime = 0;
     this.speed = 20;
     this.isTyping = false;
-
-    // Track when typing finished
     this.typingFinishedTime = null;
 
     // Modes
@@ -77,21 +75,17 @@ export class DialogueBox {
 
   updateTyping(delta) {
     if (!this.isTyping) return;
-
     if (this.fastForwardMode) {
       this.skipTypewriter();
       return;
     }
-
     this.lastTime += delta;
     if (this.lastTime >= this.speed) {
       this.lastTime = 0;
-
       if (this.charIndex < this.fullText.length) {
         this.charIndex++;
         this.displayText = this.fullText.substring(0, this.charIndex);
       }
-
       if (this.charIndex >= this.fullText.length) {
         this.isTyping = false;
         this.typingFinishedTime = Date.now();
@@ -110,7 +104,7 @@ export class DialogueBox {
     if (speaker === "[player]") {
       return this.core.currentCharacter;
     }
-    return this.core.characters?.find((c) => c.name === speaker);
+    return this.core.characters.find((c) => c.name === speaker);
   }
 
   handleClick(x, y) {
@@ -139,14 +133,6 @@ export class DialogueBox {
     return false;
   }
 
-  // Helper function for RGBA color conversion
-  hexToRgba(hex, alpha) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  }
-
   render(ctx, speaker, text) {
     // 1. Update Text Logic
     if (this.fullText !== text) {
@@ -154,71 +140,22 @@ export class DialogueBox {
     }
     this.updateTyping(16.67);
 
-    // 2. Setup Dimensions and GUI Data
+    // 2. Setup Dimensions
     const canvas = this.core.canvas;
-    const baseWidth = this.core.baseWidth || 1920;
-    const baseHeight = this.core.baseHeight || 1080;
+    const boxHeight = canvas.height * 0.25; // Main dialogue box height
+    const boxY = canvas.height - boxHeight; // Top edge of dialogue box
 
-    const guiData = this.core.dataCache?.gameGUI?.gui_dialoguebox;
-    const globalSettings = this.core.dataCache?.gameGUI?.game_gui_settings;
-
-    if (!guiData || !globalSettings) {
-      // Fallback
-      ctx.fillStyle = "rgba(0,0,0,0.8)";
-      const defaultBoxHeight = canvas.height * 0.25;
-      ctx.fillRect(
-        0,
-        canvas.height - defaultBoxHeight,
-        canvas.width,
-        defaultBoxHeight
-      );
-      return;
-    }
-
-    // --- Calculate Scaled Dimensions (Width and Height) ---
-    const dialogueBaseHeight = guiData.dialogueBox_Hieght || 300;
-    const dialogueBaseWidth = guiData.dialogueBox_Width || 1920;
-
-    const boxHeight = (dialogueBaseHeight / baseHeight) * canvas.height;
-    const scaledWidth = (dialogueBaseWidth / baseWidth) * canvas.width;
-
-    // Centering the box
-    const boxWidth = scaledWidth;
-    const boxX = (canvas.width - boxWidth) / 2;
-    const boxY = canvas.height - boxHeight;
-
-    // Get Styling
-    const bgColor = guiData.dialogueBox_BackgroundColor || "#1A1A1A";
-    const opacity = guiData.dialogueBox_Opacity || 0.9;
-    const borderColor = guiData.dialogueBox_Border || "#fff";
-    const borderThickness = guiData.dialogueBox_BorderThickness || 2;
-
-    // 1. Text Margin X (from JSON data) - Horizontal margin used for text area left/right/top/bottom
-    const textMarginX =
-      (guiData.dialogueBox_Padding || 10) * (canvas.width / baseWidth);
-    // 2. Fixed Avatar Padding (used for avatar horizontal offset)
-    const fixedAvatarPaddingX = 20 * (canvas.width / baseWidth); // Fixed at 20px base resolution
-
-    const fontFamily = globalSettings.fontFamily || "Arial, sans-serif";
-    const dialogueBoxFillStyle = this.hexToRgba(bgColor, opacity);
-
-    // --- Font Size Setup (Using custom base font size) ---
-    const baseFontSize =
-      (globalSettings.fontSize || 12) * (canvas.height / baseHeight);
-
-    const textFontSize = baseFontSize * 1.0;
-    const speakerFontSize = baseFontSize * 1.3;
-
-    // Calculate Speaker Box Dimensions
+    // Calculate Font & Speaker Box Dimensions FIRST (Needed for Avatar alignment)
+    //const speakerFontSize = boxHeight * 0.13;
+    const speakerFontSize = boxHeight * 0.13;
     const speakerPaddingY = speakerFontSize * 0.3;
     const speakerBoxHeight = speakerFontSize + speakerPaddingY * 2;
 
-    // --- 3. Avatar Data Logic (Image Caching) ---
+    // --- 3. Avatar Data Logic ---
     if (this.lastSpeaker !== speaker) {
       this.lastSpeaker = speaker;
       const charData = this.getSpeakerData(speaker);
       this.activeAvatarData = charData?.avatar_img || null;
-
       this.activeAvatarImage = null;
 
       if (this.activeAvatarData) {
@@ -230,38 +167,46 @@ export class DialogueBox {
       }
     }
 
-    // --- 4. Draw Main Dialogue Box Background (Centered) ---
-    ctx.fillStyle = dialogueBoxFillStyle;
-    ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+    // --- 4. Draw Main Dialogue Box Background ---
+    // Draw this first so the avatar sits ON TOP of the background
+    ctx.fillStyle = "rgba(0,0,0,0.8)";
+    ctx.fillRect(0, boxY, canvas.width, boxHeight);
 
-    // Draw Main Border (Only top border)
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = borderThickness;
-    ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+    // Draw Main Border
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, boxY);
+    ctx.lineTo(canvas.width, boxY);
+    ctx.stroke();
 
-    // --- 5. Render Avatar Image (CLAMPS TO BOTTOM, POPS OUT TOP) ---
-    let contentOffsetX = textMarginX; // Default start position for text/name if no avatar
+    // Global Left Margin
+    const baseMarginX = canvas.width * 0.05;
+
+    // --- 5. Render Avatar Image (POP-OUT LEFT) ---
+    let contentOffsetX = 0;
 
     if (
       this.activeAvatarImage &&
       this.activeAvatarImage.complete &&
       this.activeAvatarData
     ) {
-      // Calculate size of the pop-out avatar
-      const avatarRatio = 1;
-      // New avatar height: Dialogue box height + Speaker name box height (Allows pop-out up to name box level)
-      const avatarHeight = boxHeight + speakerBoxHeight;
-      const avatarWidth = avatarHeight * avatarRatio;
+      // 泙 Logic: Align Top of Avatar to Top of Speaker Box
+      // Speaker Box sits exactly above BoxY.
+      const avatarTopY = boxY - speakerBoxHeight;
 
-      // Calculate position (Clamped to bottom)
-      const avatarX = boxX + fixedAvatarPaddingX;
-      // Avatar Y: (Bottom of Dialogue Box) - (Avatar Height)
-      const avatarY = boxY + boxHeight - avatarHeight;
+      // Calculate Height: From Top of Speaker Box down to Bottom of Screen (minus padding)
+      // Or simply: DialogueBox Height + SpeakerBox Height
+      const avatarHeight = boxHeight + speakerBoxHeight;
+
+      // Keep it square or adjust width based on preference
+      const avatarWidth = avatarHeight;
+
+      const avatarX = baseMarginX;
 
       // Draw Avatar
-      const avatarData = this.getSpeakerData(speaker)?.avatar_img;
-      if (Array.isArray(avatarData)) {
-        const [_, sx, sy, sw, sh] = avatarData;
+      if (Array.isArray(this.activeAvatarData)) {
+        const [_, sx, sy, sw, sh] = this.activeAvatarData;
         ctx.drawImage(
           this.activeAvatarImage,
           sx,
@@ -269,7 +214,7 @@ export class DialogueBox {
           sw,
           sh,
           avatarX,
-          avatarY,
+          avatarTopY, // Starts higher up!
           avatarWidth,
           avatarHeight
         );
@@ -277,36 +222,40 @@ export class DialogueBox {
         ctx.drawImage(
           this.activeAvatarImage,
           avatarX,
-          avatarY,
+          avatarTopY,
           avatarWidth,
           avatarHeight
         );
       }
 
-      // Space consumed by the avatar area (used to push the text/name box)
-      contentOffsetX = fixedAvatarPaddingX + avatarWidth + textMarginX;
+      // 泙 Removed: ctx.strokeRect (No more white border on image)
+
+      // Set Offset for Text & Name Box
+      const gap = canvas.width * 0.02;
+      contentOffsetX = avatarWidth + gap;
     }
 
     // --- 6. Speaker Name Box ---
     const resolvedSpeaker = this.resolveSpeakerName(speaker);
 
     if (resolvedSpeaker) {
-      ctx.font = `bold ${speakerFontSize}px ${fontFamily}`;
+      ctx.font = `bold ${speakerFontSize}px Arial`;
       const speakerMetrics = ctx.measureText(resolvedSpeaker);
 
       const speakerPaddingX = speakerFontSize * 0.8;
-      const speakerBoxWidth = speakerMetrics.width + speakerPaddingX * 2;
 
-      // Speaker box X starts where the content starts (after avatar area or default margin)
-      const speakerBoxX = boxX + contentOffsetX;
-      // Speaker box Y remains floating above the main box
+      const speakerBoxWidth = speakerMetrics.width + speakerPaddingX * 2;
+      // Height is already calculated above as `speakerBoxHeight`
+
+      // Align box relative to content offset
+      const speakerBoxX = baseMarginX + contentOffsetX;
       const speakerBoxY = boxY - speakerBoxHeight;
 
-      ctx.fillStyle = dialogueBoxFillStyle;
+      ctx.fillStyle = "rgba(0,0,0,0.8)"; // Gold/Yellow
       ctx.fillRect(speakerBoxX, speakerBoxY, speakerBoxWidth, speakerBoxHeight);
 
-      ctx.strokeStyle = borderColor;
-      ctx.lineWidth = borderThickness;
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
       ctx.strokeRect(
         speakerBoxX,
         speakerBoxY,
@@ -324,63 +273,33 @@ export class DialogueBox {
       );
     }
 
-    // --- 7. Dialogue Text (Uses textMarginX for padding) ---
+    // --- 7. Dialogue Text ---
+    const textFontSize = boxHeight * 0.1;
     ctx.fillStyle = "#fff";
-    ctx.font = `${textFontSize}px ${fontFamily}`;
+    ctx.font = `${textFontSize}px Arial`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
 
-    // Text X starts where the content starts
-    const textX = boxX + contentOffsetX;
-    // Text Y starts from top padding
-    const textY = boxY + textMarginX;
+    const textX = baseMarginX + contentOffsetX;
+    const textY = boxY + boxHeight * 0.15;
 
-    // Remaining width calculation: Total Box Width - Content Offset (Left) - Text Margin (Right)
-    const maxTextWidth = boxWidth - contentOffsetX - textMarginX;
+    // Remaining width calculation
+    const maxWidth = canvas.width - baseMarginX - contentOffsetX - baseMarginX;
 
-    const lines = this.wrapText(ctx, this.displayText, maxTextWidth);
+    const lines = this.wrapText(ctx, this.displayText, maxWidth);
     const lineHeight = textFontSize * 1.4;
 
     for (let i = 0; i < lines.length; i++) {
       ctx.fillText(lines[i], textX, textY + i * lineHeight);
     }
 
-    // --- 8. Buttons (No longer uses textMarginX for positioning) ---
-    this.renderButtons(
-      ctx,
-      boxX,
-      boxWidth,
-      boxY,
-      boxHeight,
-      textFontSize,
-      fontFamily,
-      dialogueBoxFillStyle,
-      borderColor,
-      borderThickness
-    );
+    // --- 8. Buttons ---
+    this.renderButtons(ctx, canvas, boxY, boxHeight, textFontSize);
   }
 
-  renderButtons(
-    ctx,
-    boxX,
-    boxWidth,
-    boxY,
-    boxHeight,
-    baseFontSize,
-    fontFamily,
-    dialogueBoxFillStyle,
-    borderColor,
-    borderThickness
-  ) {
-    const canvas = this.core.canvas;
-    const baseWidth = this.core.baseWidth || 1920;
-
-    // --- BUTTON PADDING (Independent - 20px base) ---
-    const buttonPadding = 20 * (canvas.width / baseWidth);
-    // ------------------------------------
-
+  renderButtons(ctx, canvas, boxY, boxHeight, baseFontSize) {
     const autoFontSize = baseFontSize * 0.8;
-    ctx.font = `${autoFontSize}px ${fontFamily}`;
+    ctx.font = `${autoFontSize}px Arial`;
     const btnPaddingX = autoFontSize * 0.8;
     const btnPaddingY = autoFontSize * 0.4;
     const gap = 10;
@@ -391,20 +310,15 @@ export class DialogueBox {
     const ffWidth = ffMetrics.width + btnPaddingX * 2;
     const btnHeight = autoFontSize + btnPaddingY * 2;
 
-    // Align to Right Edge of the CUSTOM box, using buttonPadding
-    const ffX = boxX + boxWidth - ffWidth - buttonPadding;
-    // Clamped to the BOTTOM of the dialogue box, using buttonPadding
-    const btnY = boxY + boxHeight - btnHeight - buttonPadding;
+    const ffX = canvas.width - ffWidth - canvas.width * 0.03;
+    const btnY = boxY + boxHeight - btnHeight - canvas.height * 0.02;
 
     this.ffButton = { x: ffX, y: btnY, width: ffWidth, height: btnHeight };
 
-    // Use dialogue box fill style for non-active buttons
-    ctx.fillStyle = this.fastForwardMode ? "#FF4500" : dialogueBoxFillStyle;
+    ctx.fillStyle = this.fastForwardMode ? "#FF4500" : "rgba(50,50,50,0.7)";
     ctx.fillRect(ffX, btnY, ffWidth, btnHeight);
-
-    // Use dialogue box border style
-    ctx.strokeStyle = borderColor;
-    ctx.lineWidth = borderThickness;
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
     ctx.strokeRect(ffX, btnY, ffWidth, btnHeight);
 
     ctx.fillStyle = "#fff";
@@ -425,10 +339,9 @@ export class DialogueBox {
       height: btnHeight,
     };
 
-    // Use dialogue box fill style for non-active buttons
-    ctx.fillStyle = this.autoMode ? "#00cc55" : dialogueBoxFillStyle;
+    ctx.fillStyle = this.autoMode ? "#00cc55" : "rgba(50,50,50,0.7)";
     ctx.fillRect(autoX, btnY, autoWidth, btnHeight);
-    ctx.strokeRect(autoX, btnY, autoWidth, btnHeight); // Uses previously set strokeStyle
+    ctx.strokeRect(autoX, btnY, autoWidth, btnHeight);
 
     ctx.fillStyle = "#fff";
     ctx.fillText(autoLabel, autoX + autoWidth / 2, btnY + btnHeight / 2);

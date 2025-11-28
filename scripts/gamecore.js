@@ -16,6 +16,7 @@ export class GameCore {
     this.currentCharacter = null;
 
     this.dataCache = {
+      gameGUI: null,
       backgrounds: null,
       scenes: null,
       gameSettings: null,
@@ -58,19 +59,22 @@ export class GameCore {
 
   async preloadData() {
     try {
-      const [bgRes, sceneRes, settingsRes, characterSprites] =
+      const [gameGUI, bgRes, sceneRes, settingsRes, characterSprites] =
         await Promise.all([
+          fetch("./data/data-game-gui.json").then((r) => r.json()),
           fetch("./data/data-backgrounds.json").then((r) => r.json()),
           fetch("./data/data-scenes.json").then((r) => r.json()),
           fetch("./data/data-gamesettings.json").then((r) => r.json()),
           fetch("./data/data-character-sprites.json").then((r) => r.json()),
         ]);
 
+      this.dataCache.gameGUI = gameGUI;
       this.dataCache.backgrounds = bgRes;
       this.dataCache.scenes = sceneRes;
       this.dataCache.gameSettings = settingsRes;
       this.dataCache.characterSprites = characterSprites;
 
+      console.log(this.dataCache.gameGUI.game_gui_settings);
       console.log("Game data preloaded:", this.dataCache);
     } catch (err) {
       console.error("Failed to preload data:", err);

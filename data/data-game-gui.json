@@ -1,0 +1,15 @@
+{
+  "game_gui_settings": {
+    "fontSize": 30,
+    "fontFamily": "Arial, sans-serif"
+  },
+  "gui_dialoguebox": {
+    "dialogueBox_Opacity": 1,
+    "dialogueBox_Padding": 60,
+    "dialogueBox_Width": 1020,
+    "dialogueBox_Hieght": 400,
+    "dialogueBox_Border": "#c26eb7",
+    "dialogueBox_BorderThickness": 3,
+    "dialogueBox_BackgroundColor": "#c799c1"
+  }
+}
