@@ -21,6 +21,9 @@
     "dialogueBox_ButtonBorderCorner": 30,
     "dialogueBox_ButtonFontColor": "#fff",
     "dialogueBox_ButtonBackgroundColor": "#43321e",
-    "dialogueBox_ButtonBackgroundColor_Hover": "#2a1f11"
-  }
+    "dialogueBox_ButtonBackgroundColor_Hover": "#2a1f11",
+    "dialogueBox_ButtonBackgroundColor_Auto": "#35a440",
+    "dialogueBox_ButtonBackgroundColor_Skip": "#e05737"
+  },
+  "gui_dialogueChoice": {}
 }

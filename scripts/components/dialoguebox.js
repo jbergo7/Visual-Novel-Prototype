@@ -306,7 +306,6 @@ export class DialogueBox {
     // Scale Padding, Margin, Border Thickness, & Corner Radius
     const textMarginX =
       (guiData.dialogueBox_Padding || 10) * (canvas.width / baseWidth);
-    // REMOVED: dialogueBox_BottomMargin is replaced by dialogueBox_Position
     const borderThickness =
       (guiData.dialogueBox_BorderThickness || 0) * (canvas.width / baseWidth);
 
@@ -331,7 +330,7 @@ export class DialogueBox {
       guiData.dialogueBox_ButtonBackgroundColor || "#1A1A1A";
     const fontButtonColor = guiData.dialogueBox_ButtonFontColor || "#fff";
 
-    // 🔥 NEW: Extract Hover Color
+    // 🔥 Extract Hover Color
     const bgButtonColorHover =
       guiData.dialogueBox_ButtonBackgroundColor_Hover || bgButtonColor;
 
@@ -383,7 +382,7 @@ export class DialogueBox {
         boxY = (canvas.height - boxHeight) / 2 + scaledMargin;
         break;
     }
-    // --- 🔥 END UPDATED POSITION LOGIC ---
+    // --- END UPDATED POSITION LOGIC ---
 
     // Get Colors
     const bgColor = guiData.dialogueBox_BackgroundColor || "#1A1A1A";
@@ -544,7 +543,8 @@ export class DialogueBox {
       borderButtonThickness,
       fontButtonColor,
       buttonCornerRadius,
-      bgButtonColorHover // 🔥 Passing the new hover color
+      bgButtonColorHover,
+      guiData // 🔥 NEW: Pass guiData to access new colors
     );
   }
 
@@ -561,7 +561,8 @@ export class DialogueBox {
     borderButtonThickness,
     fontButtonColor,
     buttonCornerRadius,
-    bgButtonColorHover // 🔥 New Param
+    bgButtonColorHover,
+    guiData // 🔥 NEW Param
   ) {
     const canvas = this.core.canvas;
     const baseWidth = this.core.baseWidth || 1920;
@@ -573,9 +574,11 @@ export class DialogueBox {
     const btnPaddingY = autoFontSize * 0.4;
     const gap = 10;
 
-    // Hardcoded active colors (from previous implementations)
-    const skipActiveColor = "#e05737";
-    const autoActiveColor = "#35a440";
+    // 🔥 UPDATED: Use configured active colors with hardcoded fallbacks
+    const skipActiveColor =
+      guiData.dialogueBox_ButtonBackgroundColor_Skip || "#e05737";
+    const autoActiveColor =
+      guiData.dialogueBox_ButtonBackgroundColor_Auto || "#35a440";
 
     // Skip Button (Index 1)
     const ffLabel = "Skip";
@@ -606,7 +609,7 @@ export class DialogueBox {
       btnHeight,
       borderButtonThickness,
       buttonCornerRadius,
-      skipBgColor, // 🔥 Use calculated color
+      skipBgColor, // Use calculated color
       borderColor
     );
 
@@ -646,7 +649,7 @@ export class DialogueBox {
       btnHeight,
       borderButtonThickness,
       buttonCornerRadius,
-      autoBgColor, // 🔥 Use calculated color
+      autoBgColor, // Use calculated color
       borderColor
     );
 
