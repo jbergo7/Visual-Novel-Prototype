@@ -1,15 +1,26 @@
 {
   "game_gui_settings": {
-    "fontSize": 30,
+    "fontSize": 25,
     "fontFamily": "Arial, sans-serif"
   },
   "gui_dialoguebox": {
-    "dialogueBox_Opacity": 1,
+    "dialogueBox_Opacity": 0.9,
     "dialogueBox_Padding": 60,
+    "dialogueBox_BottomMargin": 50,
     "dialogueBox_Width": 1020,
-    "dialogueBox_Hieght": 400,
-    "dialogueBox_Border": "#c26eb7",
-    "dialogueBox_BorderThickness": 3,
-    "dialogueBox_BackgroundColor": "#c799c1"
+    "dialogueBox_Hieght": 300,
+    "dialogueBox_BorderThickness": 10,
+    "dialogueBox_BorderCorner": 30,
+    "dialogueBox_BorderColor": "#ffcc95",
+    "dialogueBox_FontColor": "#43321e",
+    "dialogueBox_BackgroundColor": "#fef1e1",
+    "dialogueBox_SpeakerFontColor": "#43321e",
+    "dialogueBox_SpeakerBackgroundColor": "#ffcc95",
+    "dialogueBox_SpeakerBorderCorner": 10,
+    "dialogueBox_ButtonBorderThickness": 0,
+    "dialogueBox_ButtonBorderCorner": 30,
+    "dialogueBox_ButtonFontColor": "#fff",
+    "dialogueBox_ButtonBackgroundColor": "#43321e",
+    "dialogueBox_ButtonBackgroundColor_Hover": "#2a1f11"
   }
 }

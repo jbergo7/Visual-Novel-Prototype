@@ -74,7 +74,6 @@ export class GameCore {
       this.dataCache.gameSettings = settingsRes;
       this.dataCache.characterSprites = characterSprites;
 
-      console.log(this.dataCache.gameGUI.game_gui_settings);
       console.log("Game data preloaded:", this.dataCache);
     } catch (err) {
       console.error("Failed to preload data:", err);
