@@ -4,7 +4,7 @@
     "fontFamily": "Arial, sans-serif"
   },
   "gui_dialoguebox": {
-    "dialogueBox_Opacity": 0.9,
+    "dialogueBox_Opacity": 1,
     "dialogueBox_Padding": 60,
     "dialogueBox_Position": "bottom 50",
     "dialogueBox_Width": 1020,
@@ -14,7 +14,8 @@
     "dialogueBox_BorderColor": "#ffcc95",
     "dialogueBox_FontColor": "#43321e",
     "dialogueBox_BackgroundColor": "#fef1e1",
-    "dialogueBox_SpeakerLength": "long",
+    "dialogueBox_SpeakerLength": "short",
+    "dialogueBox_SpeakerHeight": 70,
     "dialogueBox_SpeakerFontColor": "#43321e",
     "dialogueBox_SpeakerBackgroundColor": "#ffcc95",
     "dialogueBox_SpeakerBorderCorner": [30, 30, 0, 0],
@@ -24,7 +25,28 @@
     "dialogueBox_ButtonBackgroundColor": "#43321e",
     "dialogueBox_ButtonBackgroundColor_Hover": "#2a1f11",
     "dialogueBox_ButtonBackgroundColor_Auto": "#35a440",
-    "dialogueBox_ButtonBackgroundColor_Skip": "#e05737"
+    "dialogueBox_ButtonBackgroundColor_Skip": "#e05737",
+    "dialogueBox_SpeakerBackgroundImg_left": [
+      "assets/sprites/gameui/dialogue-sprite.png",
+      226,
+      21,
+      37,
+      67
+    ],
+    "dialogueBox_SpeakerBackgroundImg_Center": [
+      "assets/sprites/gameui/dialogue-sprite.png",
+      268,
+      21,
+      8,
+      67
+    ],
+    "dialogueBox_SpeakerBackgroundImg_Right": [
+      "assets/sprites/gameui/dialogue-sprite.png",
+      283,
+      21,
+      38,
+      67
+    ]
   },
   "gui_dialogueChoice": {}
 }

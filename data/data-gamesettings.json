@@ -1,7 +1,7 @@
 {
   "gameTitle": "Visual Novel",
   "version": "0.4.11-a",
-  "date_updated": "11-28-2025",
+  "date_updated": "11-29-2025",
   "gameState": {
     "currentCharacterId": "andrea",
     "currentChapter": 1,
