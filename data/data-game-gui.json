@@ -14,6 +14,7 @@
     "dialogueBox_BorderColor": "#ffcc95",
     "dialogueBox_FontColor": "#43321e",
     "dialogueBox_BackgroundColor": "#fef1e1",
+    "dialogueBox_SpeakerLength": "long",
     "dialogueBox_SpeakerFontColor": "#43321e",
     "dialogueBox_SpeakerBackgroundColor": "#ffcc95",
     "dialogueBox_SpeakerBorderCorner": 10,
