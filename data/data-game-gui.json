@@ -187,7 +187,7 @@
     "gui_menu_ButtonBackgroundImg": []
   },
   "gui_header": {
-    "header_HeightRatio": 0.06,
+    "header_Height": 60,
     "header_BackgroundColor": "#2a1f11",
     "header_Opacity": 0.95,
     "header_BorderBottomThickness": 4,

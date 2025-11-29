@@ -522,26 +522,16 @@ export class Scene {
     this.core.updateGameState("background", bgId);
   }
 
-  // 🔥🔥🔥 UPDATED onResize: Match logic with Header.js
   onResize(scaleRatio) {
     this.choicesBox?.onResize(scaleRatio);
     this.popupNotif?.onResize(scaleRatio);
 
     const canvas = this.core.canvas;
-    const guiData = this.core.dataCache?.gameGUI?.gui_header;
+    const size = canvas.height * 0.06;
+    this.menuButton.setSize(size);
 
-    // Use header height logic (default 6%)
-    const heightRatio = guiData?.header_HeightRatio || 0.06;
-    const headerHeight = canvas.height * heightRatio;
-
-    // Button size relative to header height (70%)
-    const btnSize = headerHeight * 0.7;
-    this.menuButton.setSize(btnSize);
-
-    // Position Button: Right aligned with margin, centered vertically
-    const padding = (headerHeight - btnSize) / 2;
-    this.menuButton.x = canvas.width - btnSize - 20; // 20px right margin
-    this.menuButton.y = padding;
+    this.menuButton.x = canvas.width - size - 10;
+    this.menuButton.y = size / 2 + 10;
   }
 
   render(ctx) {
