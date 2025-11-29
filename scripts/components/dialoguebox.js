@@ -1,278 +1,245 @@
 export class DialogueBox {
   constructor(core) {
+    // Core reference (must provide canvas, baseWidth/baseHeight, dataCache, characters, currentCharacter)
     this.core = core;
 
-    this.speakerMinRatio = 0.08;
-    this.speakerMaxRatio = 0.15;
-    this.textMinRatio = 0.06;
-    this.textMaxRatio = 0.12; // Typewriter
-
+    // --- Typewriter state ---
     this.fullText = "";
     this.displayText = "";
     this.charIndex = 0;
-    this.lastTime = 0;
-    this.speed = 20;
-    this.isTyping = false; // Track when typing finished
+    this.accumulator = 0;
+    this.speed = 20; // ms per char by default (can be overridden by GUI settings)
+    this.isTyping = false;
+    this.typingFinishedTime = null;
 
-    this.typingFinishedTime = null; // Modes
-
+    // --- Modes ---
     this.autoMode = false;
-    this.fastForwardMode = false; // Buttons
+    this.fastForwardMode = false;
 
+    // --- Buttons state (hitboxes updated each render) ---
     this.autoButton = { x: 0, y: 0, width: 0, height: 0 };
-    this.ffButton = { x: 0, y: 0, width: 0, height: 0 }; // Hover tracking
+    this.ffButton = { x: 0, y: 0, width: 0, height: 0 };
 
-    this.hoverIndex = -1; // -1: none, 0: Auto, 1: Skip
-    this.mouseMoveHandler = this.handleMouseMove.bind(this); // Add mousemove listener right away since DialogueBox is always on screen
+    // Hover index: -1 none, 0 auto, 1 skip
+    this.hoverIndex = -1;
+    this.mouseMoveHandler = this.handleMouseMove.bind(this);
+    this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
 
-    this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler); // Avatar Image Caching
-
+    // --- Avatar / speaker tracking ---
     this.lastSpeaker = null;
-    this.activeAvatarImage = null;
-    this.activeAvatarData = null; // Caching for all sprite images (speaker box parts, main dialogue bg)
+    this.activeAvatarData = null; // path or [path, sx, sy, sw, sh]
+    this.activeAvatarImage = null; // Image object
 
-    this.imageCache = {}; // Cache: { 'path/to/image.png': ImageObject } // Speaker Box Sprite Data
+    // --- Asset caching & failure tracking ---
+    this.imageCache = {}; // { src: Image }
+    this.failedImages = new Set(); // src strings that have permanently failed
 
-    this.speakerSpriteData = {
-      left: null,
-      center: null,
-      right: null,
-    }; // Dialogue Box Background Image Data
+    // Speaker sprite pieces (arrays or null)
+    this.speakerSpriteData = { left: null, center: null, right: null };
 
-    this.dialogueBgImageCache = {
-      data: null, // Stores the [path, sx, sy, sw, sh] array or string path
-      image: null, // Stores the Image object
-    };
+    // Dialogue background cached info: { data, image }
+    this.dialogueBgImageCache = { data: null, image: null };
 
-    // Set to track images that permanently failed to load
-    this.failedImages = new Set();
+    // Configurable ratios (kept from original)
+    this.speakerMinRatio = 0.08;
+    this.speakerMaxRatio = 0.15;
+    this.textMinRatio = 0.06;
+    this.textMaxRatio = 0.12;
+
+    // small performance caches
+    this._measureCtx = null; // created on demand for measureText if needed
   }
 
-  // HELPER: Loads an image into the cache if not already present
+  /* -------------------------
+     ---------- IMAGES ----------
+     ------------------------- */
+
+  // Load image into cache or return existing Image object.
+  // Returns Image object or null on immediate failure.
   _loadImage(src) {
     if (!src) return null;
-
-    // If already marked as failed, stop trying and return null (triggers fallback)
-    if (this.failedImages.has(src)) {
-      return null;
-    }
-
-    if (this.imageCache[src]) {
-      return this.imageCache[src];
-    }
+    if (this.failedImages.has(src)) return null;
+    const existing = this.imageCache[src];
+    if (existing) return existing;
 
     const img = new Image();
-
-    // 1. ASYNCHRONOUS Error Handler: Humahawak sa 404/network errors.
-    img.onerror = () => {
-      console.error(
-        "[DialogueBox] Failed to load image (404/network error):",
-        src
-      );
-
-      // Tanggalin ang entry sa cache at markahan bilang failed.
-      delete this.imageCache[src];
-      this.failedImages.add(src);
-
-      // KRITIKAL NA PAGBABAGO: Kung ang broken image object na ito
-      // ang kasalukuyang nakalagay sa dialogue box cache, NU-LLIFY agad natin ito.
-      if (this.dialogueBgImageCache.image === img) {
-        this.dialogueBgImageCache.image = null; // Forces immediate color fallback
+    img.onload = () => {
+      // If image loaded but has zero natural size, treat as failed
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        console.error("[DialogueBox] Loaded image has zero size:", src);
+        delete this.imageCache[src];
+        this.failedImages.add(src);
+        // If it was used as dialogue bg, nullify it to force fallback
+        if (this.dialogueBgImageCache.image === img)
+          this.dialogueBgImageCache.image = null;
       }
     };
+    img.onerror = () => {
+      console.error("[DialogueBox] Failed to load image:", src);
+      delete this.imageCache[src];
+      this.failedImages.add(src);
+      if (this.dialogueBgImageCache.image === img)
+        this.dialogueBgImageCache.image = null;
+    };
 
-    // 2. SYNCHRONOUS Error Handler: Humahawak sa mga immediate errors sa pag-assign ng src. (try...catch)
     try {
       img.src = src;
     } catch (e) {
-      console.error(
-        "[DialogueBox] Synchronous error trying to set image source:",
-        src,
-        e
-      );
-      // Pilitin na mag-fail agad at ibalik ang null
+      console.error("[DialogueBox] Exception setting image src:", src, e);
       this.failedImages.add(src);
       return null;
     }
 
-    // Walang synchronous error, i-cache at ibalik.
     this.imageCache[src] = img;
     return img;
   }
 
+  // Ensure the dialogue background image object is set (or null when no valid image)
   _ensureDialogueBgImage(guiData) {
-    const bgData = guiData.dialogueBox_BackgroundImg || null; // Check if data is new or changed
+    const bgData = guiData?.dialogueBox_BackgroundImg ?? null;
+    if (this.dialogueBgImageCache.data === bgData) return; // nothing changed
 
-    if (this.dialogueBgImageCache.data !== bgData) {
-      this.dialogueBgImageCache.data = bgData;
-      this.dialogueBgImageCache.image = null; // Clear old image
+    this.dialogueBgImageCache.data = bgData;
+    this.dialogueBgImageCache.image = null;
 
-      let src = null;
-      if (typeof bgData === "string" && bgData.length > 0) {
-        src = bgData; // Single image path
-      } else if (Array.isArray(bgData) && bgData.length >= 5) {
-        src = bgData[0]; // Sprite image path
-      }
-
-      if (src) {
-        this.dialogueBgImageCache.image = this._loadImage(src);
-      } else {
-        this.dialogueBgImageCache.image = null; // Explicitly set to null if no source
-      }
+    let src = null;
+    if (typeof bgData === "string" && bgData.trim().length > 0) {
+      src = bgData;
+    } else if (
+      Array.isArray(bgData) &&
+      bgData.length >= 1 &&
+      typeof bgData[0] === "string"
+    ) {
+      src = bgData[0];
     }
-  } // Ensures data and loads images for all three speaker box pieces
 
+    if (!src) {
+      // no image configured
+      return;
+    }
+
+    if (this.failedImages.has(src)) {
+      // Image previously failed; do not attempt again
+      return;
+    }
+
+    const img = this._loadImage(src);
+    if (img) this.dialogueBgImageCache.image = img;
+  }
+
+  // Ensure speaker sprite pieces are remembered and their images are requested
   _ensureSpeakerSpriteData(guiData) {
-    // 1. Store data arrays
-    this.speakerSpriteData.left =
-      guiData.dialogueBox_SpeakerBackgroundImg_left || null;
-    this.speakerSpriteData.center =
-      guiData.dialogueBox_SpeakerBackgroundImg_Center || null;
-    this.speakerSpriteData.right =
-      guiData.dialogueBox_SpeakerBackgroundImg_Right || null; // 2. Load images for each piece if data exists (uses cache for shared images)
+    const left = guiData?.dialogueBox_SpeakerBackgroundImg_left ?? null;
+    const center = guiData?.dialogueBox_SpeakerBackgroundImg_Center ?? null;
+    const right = guiData?.dialogueBox_SpeakerBackgroundImg_Right ?? null;
 
-    if (this.speakerSpriteData.left) {
-      this._loadImage(this.speakerSpriteData.left[0]);
+    // Only update if changed
+    if (
+      this.speakerSpriteData.left !== left ||
+      this.speakerSpriteData.center !== center ||
+      this.speakerSpriteData.right !== right
+    ) {
+      this.speakerSpriteData.left = left;
+      this.speakerSpriteData.center = center;
+      this.speakerSpriteData.right = right;
+
+      // Preload images for each piece
+      if (left && Array.isArray(left) && left[0]) this._loadImage(left[0]);
+      if (center && Array.isArray(center) && center[0])
+        this._loadImage(center[0]);
+      if (right && Array.isArray(right) && right[0]) this._loadImage(right[0]);
     }
-    if (this.speakerSpriteData.center) {
-      this._loadImage(this.speakerSpriteData.center[0]);
+  }
+
+  /* -------------------------
+     ---------- TYPEWRITER ----------
+     ------------------------- */
+
+  startTyping(newText) {
+    this.fullText = newText ?? "";
+    if (this.fastForwardMode) {
+      // Immediately show all text if fast-forward mode
+      this.displayText = this.fullText;
+      this.charIndex = this.fullText.length;
+      this.isTyping = false;
+      this.typingFinishedTime = Date.now();
+      return;
     }
-    if (this.speakerSpriteData.right) {
-      this._loadImage(this.speakerSpriteData.right[0]);
-    }
-  } // UPDATED: Function to draw the speaker box using TILING with robust C-C OVERLAP
+    this.displayText = "";
+    this.charIndex = 0;
+    this.accumulator = 0;
+    this.isTyping = true;
+    this.typingFinishedTime = null;
+  }
 
-  drawSpeakerSpriteBox(ctx, boxX, boxY, boxWidth, boxHeight, spriteData) {
-    const leftData = spriteData.left;
-    const centerData = spriteData.center;
-    const rightData = spriteData.right;
-
-    if (!leftData || !centerData || !rightData) {
-      return false;
-    } // Kuhanin ang Images mula sa Cache
-
-    const l_image = this.imageCache[leftData[0]];
-    const c_image = this.imageCache[centerData[0]];
-    const r_image = this.imageCache[rightData[0]]; // Check if all images are loaded
-
-    if (!l_image?.complete || !c_image?.complete || !r_image?.complete) {
-      return false;
-    } // Destructure Source Data
-
-    const [_, l_sx, l_sy, l_sw, l_sh] = leftData;
-    const [__, c_sx, c_sy, c_sw, c_sh] = centerData;
-    const [___, r_sx, r_sy, r_sw, r_sh] = rightData; // --- Calculate Dimensions (Rounded for pixel-perfect drawing) ---
-
-    const centerScaleFactor = boxHeight / c_sh;
-
-    const l_dw_raw = l_sw * (boxHeight / l_sh);
-    const r_dw_raw = r_sw * (boxHeight / r_sh);
-
-    const l_dw = Math.round(l_dw_raw); // Destination width of Left cap
-    const r_dw = Math.round(r_dw_raw); // Destination width of Right cap
-    const dh = Math.round(boxHeight); // Destination height (same for all) // Ang 'tileWidth' ay dapat rounded para sa drawing
-
-    const tileWidth = Math.round(c_sw * centerScaleFactor);
-
-    const l_dx = Math.round(boxX);
-    const l_dy = Math.round(boxY);
-    const box_w_rounded = Math.round(boxWidth);
-
-    const overlapCC = 1; // 1 pixel overlap for C-C and C-R seams
-    const overlapLC = 2; // 2 pixel overlap for Left-Center seam to fix gap
-    const stepDistance = tileWidth - overlapCC; // The distance to advance after drawing a tile (C-C step)
-
-    if (stepDistance <= 0) return false; // Safety check // 1. Draw Left Piece
-
-    ctx.drawImage(l_image, l_sx, l_sy, l_sw, l_sh, l_dx, l_dy, l_dw, dh); // 2. Center Tiling Logic (C-C Overlap) // Start X for the first center tile: overlaps left cap by overlapLC
-
-    let currentX = l_dx + l_dw - overlapLC; // The X coordinate where the right cap should start (non-overlapped position)
-
-    const r_dx_start = l_dx + box_w_rounded - r_dw; // The total width of the space that needs to be covered by the center tiles (up to the right cap start)
-
-    const totalCoverWidth = r_dx_start - currentX;
-
-    if (c_image && tileWidth > 0 && totalCoverWidth > 0) {
-      // Key Fix: Math.ceil ensures we always have enough steps (tiles) to cover the total width, preventing gaps.
-      let numSteps = Math.ceil(totalCoverWidth / stepDistance);
-
-      for (let i = 0; i < numSteps; i++) {
-        let drawWidth = tileWidth;
-        let sourceWidth = c_sw; // Check if this is the last tile
-
-        if (i === numSteps - 1) {
-          // For the last tile, the drawing width is exactly the remaining distance to r_dx_start
-          drawWidth = r_dx_start - currentX; // If drawWidth is less than tileWidth, clip the source proportionally.
-
-          if (drawWidth > 0 && drawWidth < tileWidth) {
-            sourceWidth = Math.round((drawWidth / tileWidth) * c_sw);
-          } else if (drawWidth <= 0) {
-            break; // No need to draw
-          }
-        } // Draw the tile
-
-        ctx.drawImage(
-          c_image,
-          c_sx,
-          c_sy,
-          sourceWidth,
-          c_sh, // Source: Clipped source width
-          Math.round(currentX),
-          l_dy,
-          Math.round(drawWidth),
-          dh // Destination: Ensure coordinates are rounded
-        ); // Advance to the next starting point (This ensures C-C overlap: currentX + tileWidth - 1)
-
-        currentX += stepDistance;
-      }
-    } // 3. Draw Right Piece (C-R Overlap) // The right piece is drawn 1px left of its actual position (r_dx_start) to overlap the last center tile.
-
-    const r_dx_start_overlapped = r_dx_start - overlapCC;
-    ctx.drawImage(
-      r_image,
-      r_sx,
-      r_sy,
-      r_sw,
-      r_sh,
-      r_dx_start_overlapped,
-      l_dy,
-      r_dw,
-      dh
-    );
-
+  skipTypewriter() {
+    if (!this.isTyping) return false;
+    this.displayText = this.fullText;
+    this.charIndex = this.fullText.length;
+    this.isTyping = false;
+    this.typingFinishedTime = Date.now();
     return true;
-  } // Method to handle mouse movement and update hover state
+  }
+
+  updateTyping(deltaMs) {
+    if (!this.isTyping) return;
+    if (this.fastForwardMode) {
+      this.skipTypewriter();
+      return;
+    }
+    this.accumulator += deltaMs;
+    const interval = this.speed;
+    while (this.accumulator >= interval && this.isTyping) {
+      this.accumulator -= interval;
+      if (this.charIndex < this.fullText.length) {
+        this.charIndex++;
+        this.displayText = this.fullText.substring(0, this.charIndex);
+      }
+      if (this.charIndex >= this.fullText.length) {
+        this.isTyping = false;
+        this.typingFinishedTime = Date.now();
+      }
+    }
+  }
+
+  /* -------------------------
+     ---------- INPUT (mouse) ----------
+     ------------------------- */
 
   handleMouseMove(e) {
     const rect = this.core.canvas.getBoundingClientRect();
     const scaleX = this.core.canvas.width / rect.width;
     const scaleY = this.core.canvas.height / rect.height;
-
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
 
-    let newHoverIndex = -1; // Check Auto Button (index 0)
+    let newHover = -1;
+    if (this._pointInBox(mouseX, mouseY, this.autoButton)) newHover = 0;
+    else if (this._pointInBox(mouseX, mouseY, this.ffButton)) newHover = 1;
 
-    if (
-      mouseX >= this.autoButton.x &&
-      mouseX <= this.autoButton.x + this.autoButton.width &&
-      mouseY >= this.autoButton.y &&
-      mouseY <= this.autoButton.y + this.autoButton.height
-    ) {
-      newHoverIndex = 0;
-    } // Check Skip Button (index 1)
-    else if (
-      mouseX >= this.ffButton.x &&
-      mouseX <= this.ffButton.x + this.ffButton.width &&
-      mouseY >= this.ffButton.y &&
-      mouseY <= this.ffButton.y + this.ffButton.height
-    ) {
-      newHoverIndex = 1;
-    }
+    if (newHover !== this.hoverIndex) this.hoverIndex = newHover;
+  }
 
-    if (this.hoverIndex !== newHoverIndex) {
-      this.hoverIndex = newHoverIndex;
+  handleClick(x, y) {
+    if (this._pointInBox(x, y, this.autoButton)) {
+      this.toggleAuto();
+      return true;
     }
+    if (this._pointInBox(x, y, this.ffButton)) {
+      this.toggleFastForward();
+      return true;
+    }
+    return false;
+  }
+
+  _pointInBox(x, y, box) {
+    if (!box) return false;
+    return (
+      x >= box.x &&
+      x <= box.x + box.width &&
+      y >= box.y &&
+      y <= box.y + box.height
+    );
   }
 
   toggleAuto() {
@@ -291,145 +258,50 @@ export class DialogueBox {
     }
   }
 
-  startTyping(newText) {
-    this.fullText = newText;
-    if (this.fastForwardMode) {
-      this.displayText = newText;
-      this.charIndex = newText.length;
-      this.isTyping = false;
-      this.typingFinishedTime = Date.now();
-    } else {
-      this.displayText = "";
-      this.charIndex = 0;
-      this.lastTime = 0;
-      this.speed = 20;
-      this.isTyping = true;
-      this.typingFinishedTime = null;
-    }
-  }
+  /* -------------------------
+     ---------- HELPERS ----------
+     ------------------------- */
 
-  skipTypewriter() {
-    if (this.isTyping) {
-      this.displayText = this.fullText;
-      this.charIndex = this.fullText.length;
-      this.isTyping = false;
-      this.typingFinishedTime = Date.now();
-      return true;
-    }
-    return false;
-  }
-
-  updateTyping(delta) {
-    if (!this.isTyping) return;
-
-    if (this.fastForwardMode) {
-      this.skipTypewriter();
-      return;
-    }
-
-    this.lastTime += delta;
-    if (this.lastTime >= this.speed) {
-      this.lastTime = 0;
-
-      if (this.charIndex < this.fullText.length) {
-        this.charIndex++;
-        this.displayText = this.fullText.substring(0, this.charIndex);
-      }
-
-      if (this.charIndex >= this.fullText.length) {
-        this.isTyping = false;
-        this.typingFinishedTime = Date.now();
-      }
-    }
-  }
-
-  resolveSpeakerName(speaker) {
-    if (speaker === "[player]") {
-      return this.core.currentCharacter?.name || "Player";
-    }
-    return speaker;
-  }
-
-  getSpeakerData(speaker) {
-    if (speaker === "[player]") {
-      return this.core.currentCharacter;
-    }
-    return this.core.characters?.find((c) => c.name === speaker);
-  }
-
-  handleClick(x, y) {
-    // Check Auto Button
-    if (
-      x >= this.autoButton.x &&
-      x <= this.autoButton.x + this.autoButton.width &&
-      y >= this.autoButton.y &&
-      y <= this.autoButton.y + this.autoButton.height
-    ) {
-      this.toggleAuto();
-      return true;
-    } // Check Fast Forward Button
-
-    if (
-      x >= this.ffButton.x &&
-      x <= this.ffButton.x + this.ffButton.width &&
-      y >= this.ffButton.y &&
-      y <= this.ffButton.y + this.ffButton.height
-    ) {
-      this.toggleFastForward();
-      return true;
-    }
-
-    return false;
-  } // Helper function for RGBA color conversion
-
-  hexToRgba(hex, alpha) {
-    // Basic check for valid hex string
+  hexToRgba(hex, alpha = 1) {
     if (!hex || hex[0] !== "#" || (hex.length !== 7 && hex.length !== 4)) {
-      return `rgba(0, 0, 0, ${alpha})`;
+      return `rgba(0,0,0,${alpha})`;
     }
-
     let r, g, b;
     if (hex.length === 4) {
-      // Handle shorthand (#rgb)
       r = parseInt(hex[1] + hex[1], 16);
       g = parseInt(hex[2] + hex[2], 16);
       b = parseInt(hex[3] + hex[3], 16);
     } else {
-      // Handle standard (#rrggbb)
       r = parseInt(hex.slice(1, 3), 16);
       g = parseInt(hex.slice(3, 5), 16);
       b = parseInt(hex.slice(5, 7), 16);
     }
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-  } // Resolves the corner radius setting (number or array) to a scaled [TL, TR, BR, BL] array
+  }
 
   resolveRadius(rawRadius, scale) {
-    // If it's an array of 4, scale each value
     if (Array.isArray(rawRadius) && rawRadius.length === 4) {
-      // [TL, TR, BR, BL]
       return rawRadius.map((r) => r * scale);
-    } // If it's a single number, scale it and return for all corners
-    const scaledRadius =
+    }
+    const scaled =
       typeof rawRadius === "number" && rawRadius >= 0 ? rawRadius * scale : 0;
-    return [scaledRadius, scaledRadius, scaledRadius, scaledRadius];
-  } // Helper: Handles Rounded Corners & Outward Borders
+    return [scaled, scaled, scaled, scaled];
+  }
 
+  // draw a rounded rect + outward stroke border (keeps behavior consistent)
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
-    // Check if radii is an array, if not, convert single number to array for roundRect fallback
-    const resolvedRadii = Array.isArray(radii)
+    const resolved = Array.isArray(radii)
       ? radii
       : [radii, radii, radii, radii];
-    const [tl, tr, br, bl] = resolvedRadii; // Destructure the 4 radii
-    const hasRadius = tl > 0 || tr > 0 || br > 0 || bl > 0; // 1. Draw Background (Inner Box)
+    const [tl, tr, br, bl] = resolved;
+    const hasRadius = tl > 0 || tr > 0 || br > 0 || bl > 0;
 
     ctx.fillStyle = bgColor;
     ctx.beginPath();
-
     if (hasRadius) {
       if (ctx.roundRect) {
-        ctx.roundRect(x, y, w, h, resolvedRadii); // ctx.roundRect accepts an array of 4 radii
+        ctx.roundRect(x, y, w, h, resolved);
       } else {
-        // Fallback for browsers without roundRect
         ctx.moveTo(x + tl, y);
         ctx.lineTo(x + w - tr, y);
         ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
@@ -443,27 +315,23 @@ export class DialogueBox {
     } else {
       ctx.rect(x, y, w, h);
     }
-    ctx.fill(); // 2. Draw Border (Outward Stroke)
+    ctx.fill();
 
     if (thickness > 0) {
       ctx.lineWidth = thickness;
       ctx.strokeStyle = borderColor;
-
       const offset = thickness / 2;
-      const bx = x - offset;
-      const by = y - offset;
-      const bw = w + thickness;
-      const bh = h + thickness; // Calculate outer radii
-
-      const outerRadii = resolvedRadii.map((r) => (r > 0 ? r + offset : 0));
+      const bx = x - offset,
+        by = y - offset,
+        bw = w + thickness,
+        bh = h + thickness;
+      const outerRadii = resolved.map((r) => (r > 0 ? r + offset : 0));
+      ctx.beginPath();
       const [o_tl, o_tr, o_br, o_bl] = outerRadii;
       const hasOuterRadius = o_tl > 0 || o_tr > 0 || o_br > 0 || o_bl > 0;
-
-      ctx.beginPath();
       if (hasOuterRadius) {
-        if (ctx.roundRect) {
-          ctx.roundRect(bx, by, bw, bh, outerRadii);
-        } else {
+        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
+        else {
           ctx.moveTo(bx + o_tl, by);
           ctx.lineTo(bx + bw - o_tr, by);
           ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + o_tr);
@@ -479,13 +347,119 @@ export class DialogueBox {
       }
       ctx.stroke();
     }
-  } // Main rendering method
+  }
 
-  render(ctx, speaker, text) {
-    if (this.fullText !== text) {
-      this.startTyping(text);
+  // Speaker sprite tiling (keeps robust overlap logic)
+  drawSpeakerSpriteBox(ctx, boxX, boxY, boxWidth, boxHeight, spriteData) {
+    const leftData = spriteData.left,
+      centerData = spriteData.center,
+      rightData = spriteData.right;
+    if (!leftData || !centerData || !rightData) return false;
+
+    const l_src = leftData[0],
+      c_src = centerData[0],
+      r_src = rightData[0];
+    const l_img = this.imageCache[l_src],
+      c_img = this.imageCache[c_src],
+      r_img = this.imageCache[r_src];
+    if (!l_img || !c_img || !r_img) return false;
+    if (!l_img.complete || !c_img.complete || !r_img.complete) return false;
+    if (
+      l_img.naturalWidth === 0 ||
+      c_img.naturalWidth === 0 ||
+      r_img.naturalWidth === 0
+    )
+      return false;
+
+    const [, l_sx, l_sy, l_sw, l_sh] = leftData;
+    const [, c_sx, c_sy, c_sw, c_sh] = centerData;
+    const [, r_sx, r_sy, r_sw, r_sh] = rightData;
+
+    const dh = Math.round(boxHeight);
+    const centerScaleFactor = boxHeight / c_sh;
+    const tileWidth = Math.max(1, Math.round(c_sw * centerScaleFactor));
+    const l_dw = Math.round(l_sw * (boxHeight / l_sh));
+    const r_dw = Math.round(r_sw * (boxHeight / r_sh));
+
+    const l_dx = Math.round(boxX);
+    const l_dy = Math.round(boxY);
+    const box_w_rounded = Math.round(boxWidth);
+
+    const overlapCC = 1; // center-center overlap
+    const overlapLC = 2; // left-center overlap
+    const step = tileWidth - overlapCC;
+    if (step <= 0) return false;
+
+    // Draw left
+    ctx.drawImage(l_img, l_sx, l_sy, l_sw, l_sh, l_dx, l_dy, l_dw, dh);
+
+    // Center tiles
+    let currentX = l_dx + l_dw - overlapLC;
+    const r_start = l_dx + box_w_rounded - r_dw;
+    const totalCover = r_start - currentX;
+    if (totalCover > 0 && tileWidth > 0) {
+      const numSteps = Math.ceil(totalCover / step);
+      for (let i = 0; i < numSteps; i++) {
+        let drawW = tileWidth;
+        let sourceW = c_sw;
+        if (i === numSteps - 1) {
+          drawW = r_start - currentX;
+          if (drawW <= 0) break;
+          if (drawW < tileWidth)
+            sourceW = Math.round((drawW / tileWidth) * c_sw);
+        }
+        ctx.drawImage(
+          c_img,
+          c_sx,
+          c_sy,
+          sourceW,
+          c_sh,
+          Math.round(currentX),
+          l_dy,
+          Math.round(drawW),
+          dh
+        );
+        currentX += step;
+      }
     }
-    this.updateTyping(16.67); // Setup Dimensions
+
+    // Draw right piece overlapped by 1px
+    const r_dx_over = r_start - overlapCC;
+    ctx.drawImage(r_img, r_sx, r_sy, r_sw, r_sh, r_dx_over, l_dy, r_dw, dh);
+
+    return true;
+  }
+
+  // Wrap text into lines using ctx.measureText
+  wrapText(ctx, text, maxWidth) {
+    if (!text) return [""];
+    const words = text.split(" ");
+    let line = "";
+    const lines = [];
+    for (const w of words) {
+      const test = line.length ? `${line} ${w}` : w;
+      if (ctx.measureText(test).width > maxWidth && line !== "") {
+        lines.push(line);
+        line = w;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  /* -------------------------
+     ---------- MAIN RENDER ----------
+     ------------------------- */
+
+  // render(ctx, speaker, text) - main entry (keeps same signature)
+  render(ctx, speaker, text) {
+    // Start typing if text changed
+    if (this.fullText !== text) this.startTyping(text);
+
+    // We choose a delta of ~16.67ms per frame to match original behavior
+    this.updateTyping(16.67);
 
     const canvas = this.core.canvas;
     const baseWidth = this.core.baseWidth || 1920;
@@ -494,6 +468,7 @@ export class DialogueBox {
     const guiData = this.core.dataCache?.gameGUI?.gui_dialoguebox;
     const globalSettings = this.core.dataCache?.gameGUI?.game_gui_settings;
 
+    // Fallback minimal box if gui missing
     if (!guiData || !globalSettings) {
       ctx.fillStyle = "rgba(0,0,0,0.8)";
       const defaultBoxHeight = canvas.height * 0.25;
@@ -504,51 +479,43 @@ export class DialogueBox {
         defaultBoxHeight
       );
       return;
-    } // --- Calculate Scaled Dimensions ---
+    }
 
+    // --- Layout & Scaling ---
     const dialogueBaseHeight = guiData.dialogueBox_Hieght || 300;
-    const dialogueBaseWidth = guiData.dialogueBox_Width || 1920; // Scale Dimensions
-
+    const dialogueBaseWidth = guiData.dialogueBox_Width || 1920;
     const boxHeight = (dialogueBaseHeight / baseHeight) * canvas.height;
-    const scaledWidth = (dialogueBaseWidth / baseWidth) * canvas.width; // Scale Padding, Margin, Border Thickness
+    const boxWidth = (dialogueBaseWidth / baseWidth) * canvas.width;
 
     const textMarginX =
-      (guiData.dialogueBox_Padding || 10) * (canvas.width / baseWidth);
+      (guiData.dialogueBox_Padding ?? 10) * (canvas.width / baseWidth);
     const borderThickness =
-      (guiData.dialogueBox_BorderThickness || 0) * (canvas.width / baseWidth);
-
-    const fixedAvatarPaddingX = 20 * (canvas.width / baseWidth); // Style for Buttons
-
+      (guiData.dialogueBox_BorderThickness ?? 0) * (canvas.width / baseWidth);
+    const fixedAvatarPaddingX = 20 * (canvas.width / baseWidth);
     const borderButtonThickness =
-      (guiData.dialogueBox_ButtonBorderThickness || 0) *
+      (guiData.dialogueBox_ButtonBorderThickness ?? 0) *
       (canvas.width / baseWidth);
-
     const bgButtonColor =
-      guiData.dialogueBox_ButtonBackgroundColor || "#1A1A1A";
-    const fontButtonColor = guiData.dialogueBox_ButtonFontColor || "#fff"; // Extract Hover Color
-
+      guiData.dialogueBox_ButtonBackgroundColor ?? "#1A1A1A";
+    const fontButtonColor = guiData.dialogueBox_ButtonFontColor ?? "#fff";
     const bgButtonColorHover =
-      guiData.dialogueBox_ButtonBackgroundColor_Hover || bgButtonColor; // --- Calculate Box Position (boxX, boxY) based on dialogueBox_Position ---
+      guiData.dialogueBox_ButtonBackgroundColor_Hover ?? bgButtonColor;
 
-    const positionString = guiData.dialogueBox_Position || "bottom 0";
+    // Position string logic (e.g., "bottom 0")
+    const positionString = guiData.dialogueBox_Position ?? "bottom 0";
     const parts = positionString
       .split(" ")
       .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-    const positionKeyword = parts[0]?.toLowerCase() || "bottom";
+      .filter(Boolean);
+    const positionKeyword = (parts[0] ?? "bottom").toLowerCase();
     const marginBase = parseFloat(parts[1]) || 0;
 
-    const boxWidth = scaledWidth;
     let boxX = (canvas.width - boxWidth) / 2;
     let boxY = (canvas.height - boxHeight) / 2;
-
-    let scaledMargin;
-
-    if (positionKeyword === "left" || positionKeyword === "right") {
-      scaledMargin = marginBase * (canvas.width / baseWidth);
-    } else {
-      scaledMargin = marginBase * (canvas.height / baseHeight);
-    }
+    let scaledMargin =
+      positionKeyword === "left" || positionKeyword === "right"
+        ? marginBase * (canvas.width / baseWidth)
+        : marginBase * (canvas.height / baseHeight);
 
     switch (positionKeyword) {
       case "top":
@@ -567,117 +534,112 @@ export class DialogueBox {
       default:
         boxY = (canvas.height - boxHeight) / 2 + scaledMargin;
         break;
-    } // --- END POSITION LOGIC --- // Get Colors
-    const bgColor = guiData.dialogueBox_BackgroundColor || "#1A1A1A";
-    const bgSpeakerColor =
-      guiData.dialogueBox_SpeakerBackgroundColor || "#1A1A1A";
-    const fontSpeakerColor = guiData.dialogueBox_SpeakerFontColor || "#fff";
-    const opacity = guiData.dialogueBox_Opacity || 0.9;
-    const fontColor = guiData.dialogueBox_FontColor || "#fff";
-    const borderColor = guiData.dialogueBox_BorderColor || "#fff";
+    }
 
-    const fontFamily = globalSettings.fontFamily || "Arial, sans-serif";
+    // Colors & fonts
+    const bgColor = guiData.dialogueBox_BackgroundColor ?? "#1A1A1A";
+    const bgSpeakerColor =
+      guiData.dialogueBox_SpeakerBackgroundColor ?? "#1A1A1A";
+    const fontSpeakerColor = guiData.dialogueBox_SpeakerFontColor ?? "#fff";
+    const opacity = guiData.dialogueBox_Opacity ?? 0.9;
+    const fontColor = guiData.dialogueBox_FontColor ?? "#fff";
+    const borderColor = guiData.dialogueBox_BorderColor ?? "#fff";
+    const fontFamily = globalSettings.fontFamily ?? "Arial, sans-serif";
+
     const dialogueBoxFillStyle = this.hexToRgba(bgColor, opacity);
     const speakerBoxFillStyle = this.hexToRgba(bgSpeakerColor, opacity);
 
     const baseFontSize =
-      (globalSettings.fontSize || 12) * (canvas.height / baseHeight);
+      (globalSettings.fontSize ?? 12) * (canvas.height / baseHeight);
     const textFontSize = baseFontSize * 1.0;
-    const speakerFontSize = baseFontSize * 1.3; // Calculate Speaker Box Dimensions based on new setting
+    const speakerFontSize = baseFontSize * 1.3;
 
-    const speakerPaddingY = speakerFontSize * 0.3; // Used for text positioning
+    // speaker box height calculation
+    const speakerPaddingY = speakerFontSize * 0.3;
     const speakerBaseHeight = guiData.dialogueBox_SpeakerHeight || 0;
+    const speakerBoxHeight =
+      speakerBaseHeight > 0
+        ? speakerBaseHeight * (canvas.height / baseHeight)
+        : speakerFontSize * 1.3 + speakerPaddingY * 2;
 
-    let speakerBoxHeight;
-    if (speakerBaseHeight > 0) {
-      // Use custom height from settings (scaled)
-      speakerBoxHeight = speakerBaseHeight * (canvas.height / baseHeight);
-    } else {
-      // Fallback to old font size calculation
-      speakerBoxHeight = speakerFontSize * 1.3 + speakerPaddingY * 2;
-    } // Load Speaker Sprite Image Data and Images
+    // Ensure assets (speaker sprites + bg image) are requested
+    this._ensureSpeakerSpriteData(guiData);
+    this._ensureDialogueBgImage(guiData);
 
-    this._ensureSpeakerSpriteData(guiData); // Load Main Dialogue Box Image Data
-
-    this._ensureDialogueBgImage(guiData); // Resolve Corner Radii
-
-    const scaleFactor = canvas.width / baseWidth; // Dialogue Box Radii
-
-    const rawCornerRadius = guiData.dialogueBox_BorderCorner || 0;
-    const dialogueRadii = this.resolveRadius(rawCornerRadius, scaleFactor); // Speaker Box Radii
-
-    const rawSpeakerCornerRadius = guiData.dialogueBox_SpeakerBorderCorner || 0;
-    const speakerRadii = this.resolveRadius(
-      rawSpeakerCornerRadius,
+    // Radii
+    const scaleFactor = canvas.width / baseWidth;
+    const dialogueRadii = this.resolveRadius(
+      guiData.dialogueBox_BorderCorner ?? 0,
       scaleFactor
-    ); // Button Radii
+    );
+    const speakerRadii = this.resolveRadius(
+      guiData.dialogueBox_SpeakerBorderCorner ?? 0,
+      scaleFactor
+    );
+    const buttonRadii = this.resolveRadius(
+      guiData.dialogueBox_ButtonBorderCorner ?? 0,
+      scaleFactor
+    );
 
-    const rawButtonCornerRadius = guiData.dialogueBox_ButtonBorderCorner || 0;
-    const buttonRadii = this.resolveRadius(rawButtonCornerRadius, scaleFactor); // --- 1. Avatar Logic (Calculate Position/Offset ONLY) --- // Update cache if speaker changed
-
+    // --- Avatar management (load if speaker changed) ---
     if (this.lastSpeaker !== speaker) {
       this.lastSpeaker = speaker;
       const charData = this.getSpeakerData(speaker);
-      this.activeAvatarData = charData?.avatar_img || null;
+      this.activeAvatarData = charData?.avatar_img ?? null;
       this.activeAvatarImage = null;
-
       if (this.activeAvatarData) {
-        this.activeAvatarImage = new Image();
         const src = Array.isArray(this.activeAvatarData)
           ? this.activeAvatarData[0]
           : this.activeAvatarData;
-        this.activeAvatarImage.src = src;
+        const img = this._loadImage(src);
+        if (img) this.activeAvatarImage = img;
       }
-    } // Determine contentOffsetX based on avatar presence
+    }
 
+    // Calculate avatar geometry
     let contentOffsetX = textMarginX;
-    let avatarWidth = 0;
-    let avatarHeight = 0;
-    let avatarX = 0;
-    let avatarY = 0;
-
+    let avatarWidth = 0,
+      avatarHeight = 0,
+      avatarX = 0,
+      avatarY = 0;
     if (
       this.activeAvatarImage &&
       this.activeAvatarImage.complete &&
       this.activeAvatarData
     ) {
-      const avatarRatio = 1;
+      const avatarRatio = 1; // as original
       avatarHeight = boxHeight + speakerBoxHeight;
       avatarWidth = avatarHeight * avatarRatio;
-
       avatarX = boxX + fixedAvatarPaddingX;
       avatarY = boxY + boxHeight - avatarHeight;
-
       contentOffsetX = fixedAvatarPaddingX + avatarWidth + textMarginX;
-    } // --- END AVATAR CALCULATION --- // --- 2. Draw Main Dialogue Box UPDATED for Image Background ---
-    const bgImage = this.dialogueBgImageCache.image;
-    const bgData = this.dialogueBgImageCache.data;
-
-    let dialogueBoxDrawn = false;
-
-    // Ang logic na ito ay magfa-fail (at hindi mag-da-draw ng image)
-    // kung ang bgImage ay null (kapag failed na ang image load)
-    // O kung hindi pa kompleto ang pag-load (bgImage.complete === false).
-    if (bgImage && bgImage.complete) {
-      // Draw Image Background (Priority)
-      ctx.save(); // Apply opacity to the image
-      ctx.globalAlpha = opacity;
-
-      if (Array.isArray(bgData) && bgData.length >= 5) {
-        // Sprite Image Version: [path, sx, sy, sw, sh]
-        const [_, sx, sy, sw, sh] = bgData;
-        ctx.drawImage(bgImage, sx, sy, sw, sh, boxX, boxY, boxWidth, boxHeight);
-      } else {
-        // Single Image Version: "path/to/image.png"
-        ctx.drawImage(bgImage, boxX, boxY, boxWidth, boxHeight);
-      }
-
-      ctx.restore();
-      dialogueBoxDrawn = true;
     }
 
-    if (!dialogueBoxDrawn) {
-      // Fallback to solid color gamit ang dialogueBox_BackgroundColor
+    // --- Draw main dialogue box (image preferred, else color) ---
+    const bgImg = this.dialogueBgImageCache.image;
+    const bgImgData = this.dialogueBgImageCache.data;
+    let bgDrawn = false;
+
+    const bgImgReady =
+      bgImg &&
+      !this.failedImages.has(bgImg.src) &&
+      bgImg.complete &&
+      bgImg.naturalWidth > 0;
+
+    if (bgImgReady) {
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      if (Array.isArray(bgImgData) && bgImgData.length >= 5) {
+        const [, sx, sy, sw, sh] = bgImgData;
+        ctx.drawImage(bgImg, sx, sy, sw, sh, boxX, boxY, boxWidth, boxHeight);
+      } else {
+        ctx.drawImage(bgImg, boxX, boxY, boxWidth, boxHeight);
+      }
+      ctx.restore();
+      bgDrawn = true;
+    }
+
+    if (!bgDrawn) {
       this.drawStyledBox(
         ctx,
         boxX,
@@ -686,45 +648,34 @@ export class DialogueBox {
         boxHeight,
         borderThickness,
         dialogueRadii,
-        dialogueBoxFillStyle, // Ito ang kulay mula sa dialogueBox_BackgroundColor
+        dialogueBoxFillStyle,
         borderColor
       );
-    } // --- 3. Speaker Name Box ---
+    }
 
+    // --- Draw speaker name box (sprite preferred) ---
     const resolvedSpeaker = this.resolveSpeakerName(speaker);
-
     if (resolvedSpeaker) {
-      // Scale Speaker Box Font and Dimensions
       ctx.font = `bold ${speakerFontSize}px ${fontFamily}`;
       const speakerMetrics = ctx.measureText(resolvedSpeaker);
-      const speakerBoxY = boxY - speakerBoxHeight; // Check Speaker Length Setting
-
+      const speakerBoxY = boxY - speakerBoxHeight;
       const speakerLengthSetting = (
-        guiData.dialogueBox_SpeakerLength || "short"
+        guiData.dialogueBox_SpeakerLength ?? "short"
       ).toLowerCase();
 
-      let speakerBoxWidth;
-      let speakerBoxX;
-      let textAnchorX;
-      let textAlign;
-
+      let speakerBoxWidth, speakerBoxX, textAnchorX, textAlign;
       if (speakerLengthSetting === "long") {
-        // Option: LONG - Span the full width of the main dialogue box
         speakerBoxWidth = boxWidth;
-        speakerBoxX = boxX; // Text should be aligned with the dialogue text start (after avatar or padding)
-
+        speakerBoxX = boxX;
         textAnchorX = speakerBoxX + contentOffsetX;
         textAlign = "left";
       } else {
-        // Default/Option: SHORT - Span only the width of the speaker name + padding
         const speakerPaddingX = speakerFontSize * 0.8;
-
         speakerBoxWidth = speakerMetrics.width + speakerPaddingX * 2;
-        speakerBoxX = boxX + contentOffsetX; // Start aligned with dialogue text start // Text is centered within the short box
-
+        speakerBoxX = boxX + contentOffsetX;
         textAnchorX = speakerBoxX + speakerBoxWidth / 2;
         textAlign = "center";
-      } // Draw Speaker Box Background (Sprite or Color)
+      }
 
       let speakerBoxDrawn = false;
       const spriteData = {
@@ -732,9 +683,7 @@ export class DialogueBox {
         center: this.speakerSpriteData.center,
         right: this.speakerSpriteData.right,
       };
-
       if (spriteData.left && spriteData.center && spriteData.right) {
-        // Draw sprite background
         speakerBoxDrawn = this.drawSpeakerSpriteBox(
           ctx,
           speakerBoxX,
@@ -744,9 +693,7 @@ export class DialogueBox {
           spriteData
         );
       }
-
       if (!speakerBoxDrawn) {
-        // Draw solid color background (Fallback or default)
         this.drawStyledBox(
           ctx,
           speakerBoxX,
@@ -758,18 +705,19 @@ export class DialogueBox {
           speakerBoxFillStyle,
           borderColor
         );
-      } // Render Speaker Name Text
+      }
 
       ctx.fillStyle = fontSpeakerColor;
       ctx.textAlign = textAlign;
-      ctx.textBaseline = "middle"; // The text is vertically centered in the speaker box
+      ctx.textBaseline = "middle";
       ctx.fillText(
         resolvedSpeaker,
         textAnchorX,
         speakerBoxY + speakerBoxHeight / 2
       );
-    } // --- 4. Dialogue Text ---
+    }
 
+    // --- Dialogue text ---
     ctx.fillStyle = fontColor;
     ctx.font = `${textFontSize}px ${fontFamily}`;
     ctx.textAlign = "left";
@@ -778,18 +726,21 @@ export class DialogueBox {
     const textX = boxX + contentOffsetX;
     const textY = boxY + textMarginX;
     const maxTextWidth = boxWidth - contentOffsetX - textMarginX;
-
     const lines = this.wrapText(ctx, this.displayText, maxTextWidth);
     const lineHeight = textFontSize * 1.4;
-
     for (let i = 0; i < lines.length; i++) {
       ctx.fillText(lines[i], textX, textY + i * lineHeight);
-    } // --- 5. Draw Avatar Image (SITS ON TOP) ---
+    }
 
-    if (avatarWidth > 0 && this.activeAvatarImage.complete) {
+    // --- Avatar (draw on top) ---
+    if (
+      avatarWidth > 0 &&
+      this.activeAvatarImage &&
+      this.activeAvatarImage.complete
+    ) {
       const avatarData = this.getSpeakerData(speaker)?.avatar_img;
-      if (Array.isArray(avatarData)) {
-        const [_, sx, sy, sw, sh] = avatarData;
+      if (Array.isArray(avatarData) && avatarData.length >= 5) {
+        const [, sx, sy, sw, sh] = avatarData;
         ctx.drawImage(
           this.activeAvatarImage,
           sx,
@@ -810,8 +761,9 @@ export class DialogueBox {
           avatarHeight
         );
       }
-    } // --- 6. Buttons ---
+    }
 
+    // --- Buttons (Auto + Skip) ---
     this.renderButtons(
       ctx,
       boxX,
@@ -828,7 +780,11 @@ export class DialogueBox {
       bgButtonColorHover,
       guiData
     );
-  } // Use buttonRadii (array) and properly apply bgButtonColorHover
+  }
+
+  /* -------------------------
+     ---------- BUTTONS ----------
+     ------------------------- */
 
   renderButtons(
     ctx,
@@ -854,29 +810,26 @@ export class DialogueBox {
     ctx.font = `${autoFontSize}px ${fontFamily}`;
     const btnPaddingX = autoFontSize * 0.8;
     const btnPaddingY = autoFontSize * 0.4;
-    const gap = 10; // Use configured active colors with hardcoded fallbacks
+    const gap = 10;
 
     const skipActiveColor =
-      guiData.dialogueBox_ButtonBackgroundColor_Skip || "#e05737";
+      guiData.dialogueBox_ButtonBackgroundColor_Skip ?? "#e05737";
     const autoActiveColor =
-      guiData.dialogueBox_ButtonBackgroundColor_Auto || "#35a440"; // Skip Button (Index 1)
+      guiData.dialogueBox_ButtonBackgroundColor_Auto ?? "#35a440";
 
+    // Skip button
     const ffLabel = "Skip";
     const ffMetrics = ctx.measureText(ffLabel);
     const ffWidth = ffMetrics.width + btnPaddingX * 2;
     const btnHeight = autoFontSize + btnPaddingY * 2;
-
     const ffX = boxX + boxWidth - ffWidth - buttonPadding;
-    const btnY = boxY + boxHeight - btnHeight - buttonPadding; // Update button position for mouse tracking
+    const btnY = boxY + boxHeight - btnHeight - buttonPadding;
 
-    this.ffButton = { x: ffX, y: btnY, width: ffWidth, height: btnHeight }; // Determine Skip Button Color
+    this.ffButton = { x: ffX, y: btnY, width: ffWidth, height: btnHeight };
 
-    let skipBgColor = bgButtonColor;
-    if (this.fastForwardMode) {
-      skipBgColor = skipActiveColor; // Active (FF Mode) is prioritized
-    } else if (this.hoverIndex === 1) {
-      skipBgColor = bgButtonColorHover; // Hover logic applied
-    } // Draw Skip Button
+    let skipBg = bgButtonColor;
+    if (this.fastForwardMode) skipBg = skipActiveColor;
+    else if (this.hoverIndex === 1) skipBg = bgButtonColorHover;
 
     this.drawStyledBox(
       ctx,
@@ -885,34 +838,31 @@ export class DialogueBox {
       ffWidth,
       btnHeight,
       borderButtonThickness,
-      buttonRadii, // Use radii array
-      skipBgColor, // Use calculated color
+      buttonRadii,
+      skipBg,
       borderColor
     );
-
     ctx.fillStyle = fontButtonColor;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(ffLabel, ffX + ffWidth / 2, btnY + btnHeight / 2); // Auto Button (Index 0)
+    ctx.fillText(ffLabel, ffX + ffWidth / 2, btnY + btnHeight / 2);
 
+    // Auto button
     const autoLabel = this.autoMode ? "Auto ON" : "Auto";
     const autoMetrics = ctx.measureText(autoLabel);
     const autoWidth = autoMetrics.width + btnPaddingX * 2;
-    const autoX = ffX - autoWidth - gap; // Update button position for mouse tracking
+    const autoX = ffX - autoWidth - gap;
 
     this.autoButton = {
       x: autoX,
       y: btnY,
       width: autoWidth,
       height: btnHeight,
-    }; // Determine Auto Button Color
+    };
 
-    let autoBgColor = bgButtonColor;
-    if (this.autoMode) {
-      autoBgColor = autoActiveColor; // Active (Auto Mode) is prioritized
-    } else if (this.hoverIndex === 0) {
-      autoBgColor = bgButtonColorHover; // Hover logic applied
-    } // Draw Auto Button
+    let autoBg = bgButtonColor;
+    if (this.autoMode) autoBg = autoActiveColor;
+    else if (this.hoverIndex === 0) autoBg = bgButtonColorHover;
 
     this.drawStyledBox(
       ctx,
@@ -921,29 +871,40 @@ export class DialogueBox {
       autoWidth,
       btnHeight,
       borderButtonThickness,
-      buttonRadii, // Use radii array
-      autoBgColor, // Use calculated color
+      buttonRadii,
+      autoBg,
       borderColor
     );
-
     ctx.fillStyle = fontButtonColor;
     ctx.fillText(autoLabel, autoX + autoWidth / 2, btnY + btnHeight / 2);
   }
 
-  wrapText(ctx, text, maxWidth) {
-    const words = text.split(" ");
-    let line = "";
-    const lines = [];
-    for (let w of words) {
-      const test = line + w + " ";
-      if (ctx.measureText(test).width > maxWidth && line !== "") {
-        lines.push(line.trim());
-        line = w + " ";
-      } else {
-        line = test;
-      }
+  /* -------------------------
+     ---------- UTILITIES / LOOKUPS ----------
+     ------------------------- */
+
+  resolveSpeakerName(speaker) {
+    if (speaker === "[player]")
+      return this.core.currentCharacter?.name ?? "Player";
+    return speaker;
+  }
+
+  getSpeakerData(speaker) {
+    if (speaker === "[player]") return this.core.currentCharacter;
+    return (this.core.characters ?? []).find((c) => c.name === speaker);
+  }
+
+  // Call to explicitly free listeners + optionally cached images (if needed)
+  destroy({ keepImages = true } = {}) {
+    try {
+      this.core.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
+    } catch (e) {
+      // ignore
     }
-    if (line) lines.push(line.trim());
-    return lines;
+    if (!keepImages) {
+      this.imageCache = {};
+      this.failedImages = new Set();
+      this.dialogueBgImageCache = { data: null, image: null };
+    }
   }
 }
