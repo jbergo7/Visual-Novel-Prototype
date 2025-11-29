@@ -3,82 +3,87 @@ export default class MenuButton {
     this.core = core;
     this.x = 0;
     this.y = 0;
-    this.size = 32;
-    this.hover = false;
+    this.width = 50;
+    this.height = 50;
+    this.isHovered = false;
 
-    // Hover listener
-    this._moveHandler = (e) => this._onMouseMove(e);
-    this.core.canvas.addEventListener("mousemove", this._moveHandler);
-  }
-
-  containsPoint(x, y) {
-    const half = this.size / 2;
-    return (
-      x >= this.x - half &&
-      x <= this.x + half &&
-      y >= this.y - half &&
-      y <= this.y + half
-    );
-  }
-
-  setPosition(x, y) {
-    this.x = x;
-    this.y = y;
+    // Handle Hover
+    this.core.canvas.addEventListener("mousemove", (e) => {
+      if (this.core.menuPopup.visible) return; // Don't track if menu is open
+      const rect = this.core.canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      this.isHovered = this.containsPoint(mx, my);
+    });
   }
 
   setSize(size) {
-    this.size = size;
+    this.width = size;
+    this.height = size;
   }
 
-  dispose() {
-    if (this._moveHandler) {
-      this.core.canvas.removeEventListener("mousemove", this._moveHandler);
-      this._moveHandler = null;
-    }
-  }
-
-  _onMouseMove(e) {
-    const rect = this.core.canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const half = this.size / 2;
-
-    this.hover =
-      mx >= this.x - half &&
-      mx <= this.x + half &&
-      my >= this.y - half &&
-      my <= this.y + half;
+  containsPoint(x, y) {
+    return (
+      x >= this.x &&
+      x <= this.x + this.width &&
+      y >= this.y &&
+      y <= this.y + this.height
+    );
   }
 
   render(ctx) {
-    const half = this.size / 2;
+    // Don't render if menu is open (optional preference)
+    if (this.core.menuPopup.visible) return;
+
+    // Use styles from gui_menu but simplified
+    const guiData = this.core.dataCache?.gameGUI?.gui_menu;
+    const borderColor = guiData?.gui_menu_BorderColor || "#fff";
+    const bgColor = guiData?.gui_menu_ButtonBackgroundColor || "#333";
+    const hoverColor = guiData?.gui_menu_ButtonBackgroundColor_Hover || "#555";
+
     ctx.save();
 
-    // hover background
-    ctx.fillStyle = this.hover ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0)";
-    ctx.fillRect(this.x - half, this.y - half, this.size, this.size);
+    // Draw Box
+    ctx.fillStyle = this.isHovered ? hoverColor : bgColor;
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 2;
 
-    // menu lines
-    const lineWidth = this.size * 0.55;
-    const lineHeight = Math.max(2, this.size * 0.08);
-    const startX = this.x - lineWidth / 2;
-    const spacing = this.size * 0.18;
+    // Simple rounded rect
+    const r = 5;
+    ctx.beginPath();
+    ctx.roundRect(this.x, this.y, this.width, this.height, r);
+    ctx.fill();
+    ctx.stroke();
 
-    ctx.fillStyle = this.hover ? "#fff" : "#ccc";
+    // Draw Hamburger Icon (3 lines)
+    ctx.strokeStyle = guiData?.gui_menu_ButtonFontColor || "#fff";
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
 
-    ctx.fillRect(
-      startX,
-      this.y - spacing - lineHeight / 2,
-      lineWidth,
-      lineHeight
-    );
-    ctx.fillRect(startX, this.y - lineHeight / 2, lineWidth, lineHeight);
-    ctx.fillRect(
-      startX,
-      this.y + spacing - lineHeight / 2,
-      lineWidth,
-      lineHeight
-    );
+    const pad = this.width * 0.25;
+    const lineH = (this.height - pad * 2) / 3; // space for 3 lines?
+    // Actually simpler:
+    const cx = this.x + this.width / 2;
+    const cy = this.y + this.height / 2;
+    const w = this.width * 0.5;
+
+    // Top
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2, cy - w / 3);
+    ctx.lineTo(cx + w / 2, cy - w / 3);
+    ctx.stroke();
+
+    // Middle
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2, cy);
+    ctx.lineTo(cx + w / 2, cy);
+    ctx.stroke();
+
+    // Bottom
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2, cy + w / 3);
+    ctx.lineTo(cx + w / 2, cy + w / 3);
+    ctx.stroke();
 
     ctx.restore();
   }

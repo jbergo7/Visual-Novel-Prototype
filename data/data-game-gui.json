@@ -162,5 +162,28 @@
       { "color_name": "blue", "color": "#3c78c8" },
       { "color_name": "gold", "color": "#dcb43c" }
     ]
+  },
+  "gui_menu": {
+    "gui_menu_Opacity": 0.95,
+    "gui_menu_Padding": 20,
+    "gui_menu_Width": 400,
+    "gui_menu_Height": 500,
+    "gui_menu_BorderThickness": 10,
+    "gui_menu_BorderCorner": [20, 20, 20, 20],
+    "gui_menu_BorderColor": "#ffcc95",
+    "gui_menu_BackgroundColor": "#fef1e1",
+
+    "gui_menu_ButtonWidth": 300,
+    "gui_menu_ButtonHeight": 60,
+    "gui_menu_ButtonSpacing": 15,
+    "gui_menu_ButtonBorderThickness": 2,
+    "gui_menu_ButtonBorderCorner": [10, 10, 10, 10],
+    "gui_menu_ButtonBorderColor": "#43321e",
+    "gui_menu_ButtonBackgroundColor": "#ffcc95",
+    "gui_menu_ButtonBackgroundColor_Hover": "#e0b383",
+    "gui_menu_ButtonFontColor": "#43321e",
+
+    "gui_menu_BackgroundImg": [],
+    "gui_menu_ButtonBackgroundImg": []
   }
 }
