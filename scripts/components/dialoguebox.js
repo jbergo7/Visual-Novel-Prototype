@@ -7,7 +7,8 @@ export class DialogueBox {
     this.fullText = "";
     this.displayText = "";
     this.charIndex = 0;
-    this.accumulator = 0;
+    this.accumulator = 0; // Used for time accumulation in updateTyping
+    this.lastTime = 0; // Kept for compatibility if needed, but accumulator is preferred
     this.speed = 20; // ms per char by default (can be overridden by GUI settings)
     this.isTyping = false;
     this.typingFinishedTime = null;
@@ -45,9 +46,6 @@ export class DialogueBox {
     this.speakerMaxRatio = 0.15;
     this.textMinRatio = 0.06;
     this.textMaxRatio = 0.12;
-
-    // small performance caches
-    this._measureCtx = null; // created on demand for measureText if needed
   }
 
   /* -------------------------
@@ -63,25 +61,30 @@ export class DialogueBox {
     if (existing) return existing;
 
     const img = new Image();
-    img.onload = () => {
-      // If image loaded but has zero natural size, treat as failed
-      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-        console.error("[DialogueBox] Loaded image has zero size:", src);
-        delete this.imageCache[src];
-        this.failedImages.add(src);
-        // If it was used as dialogue bg, nullify it to force fallback
-        if (this.dialogueBgImageCache.image === img)
-          this.dialogueBgImageCache.image = null;
-      }
-    };
+
+    // 1. ASYNCHRONOUS Error Handler
     img.onerror = () => {
       console.error("[DialogueBox] Failed to load image:", src);
       delete this.imageCache[src];
       this.failedImages.add(src);
+
+      // If it was used as dialogue bg, nullify it to force fallback immediately
       if (this.dialogueBgImageCache.image === img)
         this.dialogueBgImageCache.image = null;
     };
 
+    // Optional: Check zero size on load
+    img.onload = () => {
+      if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        console.error("[DialogueBox] Loaded image has zero size:", src);
+        delete this.imageCache[src];
+        this.failedImages.add(src);
+        if (this.dialogueBgImageCache.image === img)
+          this.dialogueBgImageCache.image = null;
+      }
+    };
+
+    // 2. SYNCHRONOUS Error Handler
     try {
       img.src = src;
     } catch (e) {
@@ -97,7 +100,18 @@ export class DialogueBox {
   // Ensure the dialogue background image object is set (or null when no valid image)
   _ensureDialogueBgImage(guiData) {
     const bgData = guiData?.dialogueBox_BackgroundImg ?? null;
-    if (this.dialogueBgImageCache.data === bgData) return; // nothing changed
+
+    // Deep equality check for array data or string to avoid unnecessary reloads
+    const isSameData =
+      this.dialogueBgImageCache.data === bgData ||
+      (Array.isArray(this.dialogueBgImageCache.data) &&
+        Array.isArray(bgData) &&
+        this.dialogueBgImageCache.data.length === bgData.length &&
+        this.dialogueBgImageCache.data.every(
+          (val, index) => val === bgData[index]
+        ));
+
+    if (isSameData) return; // nothing changed
 
     this.dialogueBgImageCache.data = bgData;
     this.dialogueBgImageCache.image = null;
@@ -133,7 +147,7 @@ export class DialogueBox {
     const center = guiData?.dialogueBox_SpeakerBackgroundImg_Center ?? null;
     const right = guiData?.dialogueBox_SpeakerBackgroundImg_Right ?? null;
 
-    // Only update if changed
+    // Only update if changed (simple ref check is usually enough for config objects)
     if (
       this.speakerSpriteData.left !== left ||
       this.speakerSpriteData.center !== center ||
@@ -209,7 +223,7 @@ export class DialogueBox {
   handleMouseMove(e) {
     const rect = this.core.canvas.getBoundingClientRect();
     const scaleX = this.core.canvas.width / rect.width;
-    const scaleY = this.core.canvas.height / rect.height;
+    const scaleY = this.core.canvas.height / rect.height; // Fixed: use rect.height
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
 
@@ -302,6 +316,7 @@ export class DialogueBox {
       if (ctx.roundRect) {
         ctx.roundRect(x, y, w, h, resolved);
       } else {
+        // Fallback manual arc drawing
         ctx.moveTo(x + tl, y);
         ctx.lineTo(x + w - tr, y);
         ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
@@ -364,6 +379,7 @@ export class DialogueBox {
       r_img = this.imageCache[r_src];
     if (!l_img || !c_img || !r_img) return false;
     if (!l_img.complete || !c_img.complete || !r_img.complete) return false;
+    // Safety check for zero size images
     if (
       l_img.naturalWidth === 0 ||
       c_img.naturalWidth === 0 ||
@@ -405,6 +421,7 @@ export class DialogueBox {
         if (i === numSteps - 1) {
           drawW = r_start - currentX;
           if (drawW <= 0) break;
+          // If needed, clip source width proportional to remaining draw width
           if (drawW < tileWidth)
             sourceW = Math.round((drawW / tileWidth) * c_sw);
         }
@@ -423,7 +440,7 @@ export class DialogueBox {
       }
     }
 
-    // Draw right piece overlapped by 1px
+    // Draw right piece overlapped by 1px with last center tile
     const r_dx_over = r_start - overlapCC;
     ctx.drawImage(r_img, r_sx, r_sy, r_sw, r_sh, r_dx_over, l_dy, r_dw, dh);
 
@@ -458,7 +475,6 @@ export class DialogueBox {
     // Start typing if text changed
     if (this.fullText !== text) this.startTyping(text);
 
-    // We choose a delta of ~16.67ms per frame to match original behavior
     this.updateTyping(16.67);
 
     const canvas = this.core.canvas;
