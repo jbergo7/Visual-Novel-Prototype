@@ -274,6 +274,7 @@ export class DialogueBox {
     return [scaled, scaled, scaled, scaled];
   }
 
+  // --- 🔥 FIXED: Adjusted Border logic to ensure Overlap (No Gaps) ---
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
     const resolved = Array.isArray(radii)
       ? radii
@@ -307,15 +308,39 @@ export class DialogueBox {
     if (thickness > 0) {
       ctx.lineWidth = thickness;
       ctx.strokeStyle = borderColor;
-      const offset = thickness / 2;
-      const bx = x - offset,
-        by = y - offset,
-        bw = w + thickness,
-        bh = h + thickness;
+
+      // 🔥 FIX: Overlap adjustment
+      // Binabawasan natin ang offset ng 1px para pumasok nang konti ang border sa ilalim ng image/fill
+      const overlap = 1;
+      const offset = thickness / 2 - overlap;
+
+      const bx = x - offset;
+      const by = y - offset;
+      // Adjust width/height para match sa bagong offset
+      const bw = w + thickness - overlap * 2;
+      const bh = h + thickness - overlap * 2;
+
       const outerRadii = resolved.map((r) => (r > 0 ? r + offset : 0));
+      const [o_tl, o_tr, o_br, o_bl] = outerRadii;
+      const hasOuterRadius = o_tl > 0 || o_tr > 0 || o_br > 0 || o_bl > 0;
+
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
-      else ctx.rect(bx, by, bw, bh);
+      if (hasOuterRadius) {
+        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
+        else {
+          ctx.moveTo(bx + o_tl, by);
+          ctx.lineTo(bx + bw - o_tr, by);
+          ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + o_tr);
+          ctx.lineTo(bx + bw, by + bh - o_br);
+          ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - o_br, by + bh);
+          ctx.lineTo(bx + o_bl, by + bh);
+          ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - o_bl);
+          ctx.lineTo(bx, by + o_tl);
+          ctx.quadraticCurveTo(bx, by, bx + o_tl, by);
+        }
+      } else {
+        ctx.rect(bx, by, bw, bh);
+      }
       ctx.stroke();
     }
   }
@@ -681,7 +706,7 @@ export class DialogueBox {
           speakerBorderThickness,
           speakerRadii,
           "rgba(0,0,0,0)",
-          speakerBorderColor // Use distinct speaker border color
+          speakerBorderColor
         );
       }
 

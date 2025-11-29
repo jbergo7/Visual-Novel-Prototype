@@ -11,7 +11,7 @@
     "dialogueBox_Hieght": 300,
     "dialogueBox_BorderThickness": 10,
     "dialogueBox_BorderCorner": [0, 0, 30, 30],
-    "dialogueBox_BorderColor": "#ffcc95",
+    "dialogueBox_BorderColor": "#461b82",
     "dialogueBox_FontColor": "#fff",
     "dialogueBox_BackgroundColor": "#fef1e1",
     "dialogueBox_SpeakerColor": "#ffcc95",
