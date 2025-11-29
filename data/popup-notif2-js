@@ -7,47 +7,12 @@ export class PopupNotif {
     // Base resolution reference
     this.baseWidth = 1920;
     this.baseHeight = 1080;
-
-    // --- Image Caching ---
-    this.imageCache = {};
-    this.failedImages = new Set();
   }
 
-  /* -------------------------
-       ---------- IMAGE HANDLING ----------
-       ------------------------- */
-
-  _loadImage(src) {
-    if (!src) return null;
-    if (this.failedImages.has(src)) return null;
-    const existing = this.imageCache[src];
-    if (existing) return existing;
-
-    const img = new Image();
-    img.onerror = () => {
-      console.error("[PopupNotif] Failed to load image:", src);
-      delete this.imageCache[src];
-      this.failedImages.add(src);
-    };
-    img.onload = () => {
-      if (img.naturalWidth === 0) {
-        this.failedImages.add(src);
-        delete this.imageCache[src];
-      }
-    };
-    img.src = src;
-    this.imageCache[src] = img;
-    return img;
-  }
-
-  /* -------------------------
-       ---------- LOGIC ----------
-       ------------------------- */
-
-  show(message, type = "default") {
+  show(message, color = null) {
     const popup = {
       message,
-      type, // Store the type name (e.g., "red", "gold")
+      color: this.resolveColor(color), // Fill color based on type (red/blue/etc)
       alpha: 1,
       yOffset: 0,
       id: Date.now() + Math.random(),
@@ -61,29 +26,29 @@ export class PopupNotif {
     }, 2000);
   }
 
-  // Helper to find the specific config object from the JSON array
-  getStyleData(typeName, guiData) {
-    const colorsArray = guiData?.gui_popupNotif_BackgroundColors || [];
-
-    // 1. Try to find exact match
-    let style = colorsArray.find((c) => c.color_name === typeName);
-
-    // 2. Fallback to "default" if not found
-    if (!style) {
-      style = colorsArray.find((c) => c.color_name === "default");
+  resolveColor(colorName) {
+    // Colors for the "Fill" or Background of the notification
+    switch (colorName) {
+      case "red":
+        return "#c83232";
+      case "green":
+        return "#32b45a";
+      case "blue":
+        return "#3c78c8";
+      case "gold":
+      case "yellow":
+        return "#dcb43c";
+      default:
+        // Default to dark gray if no color specified
+        return "#333333";
     }
-
-    // 3. Fallback to hardcoded safe object if JSON is missing/broken
-    if (!style) {
-      return { color: "#333333" };
-    }
-
-    return style;
   }
 
   fadeOut(popup) {
     const fadeInterval = setInterval(() => {
       popup.alpha -= 0.05;
+
+      // Move slightly up while fading
       popup.yOffset -= 1 * this.scaleRatio;
 
       if (popup.alpha <= 0) {
@@ -98,12 +63,16 @@ export class PopupNotif {
   }
 
   /* -------------------------
-       ---------- DRAWING HELPERS ----------
+       ---------- HELPERS ----------
        ------------------------- */
 
   hexToRgba(color, alpha = 1) {
     if (!color) return `rgba(0,0,0,${alpha})`;
-    if (color.startsWith("rgba")) return color;
+    if (color.startsWith("rgba")) {
+      // Replace existing alpha if needed, simpler to just return or parse
+      // For now, assuming inputs are hex or simple rgb
+      return color;
+    }
     if (color.startsWith("rgb")) return color;
 
     if (color[0] === "#") {
@@ -131,6 +100,7 @@ export class PopupNotif {
     return [scaled, scaled, scaled, scaled];
   }
 
+  // Reuse the robust Box Drawing logic from DialogueBox
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
     const resolved = Array.isArray(radii)
       ? radii
@@ -138,7 +108,7 @@ export class PopupNotif {
     const [tl, tr, br, bl] = resolved;
     const hasRadius = tl > 0 || tr > 0 || br > 0 || bl > 0;
 
-    // Draw Background/Fill
+    // Draw Background
     ctx.fillStyle = bgColor;
     ctx.beginPath();
     if (hasRadius) {
@@ -165,7 +135,7 @@ export class PopupNotif {
       ctx.lineWidth = thickness;
       ctx.strokeStyle = borderColor;
 
-      // 1px Overlap Logic (To fix gap issue)
+      // Overlap logic to prevent gaps
       const overlap = 1;
       const offset = thickness / 2 - overlap;
 
@@ -175,10 +145,19 @@ export class PopupNotif {
       const bh = h + thickness - overlap * 2;
 
       const outerRadii = resolved.map((r) => (r > 0 ? r + offset : 0));
+      const [o_tl, o_tr, o_br, o_bl] = outerRadii;
+      const hasOuterRadius = o_tl > 0 || o_tr > 0 || o_br > 0 || o_bl > 0;
 
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
-      else ctx.rect(bx, by, bw, bh);
+      if (hasOuterRadius) {
+        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
+        else {
+          // Manual fallback if needed, but roundRect is widely supported in modern browsers
+          ctx.rect(bx, by, bw, bh);
+        }
+      } else {
+        ctx.rect(bx, by, bw, bh);
+      }
       ctx.stroke();
     }
   }
@@ -191,21 +170,22 @@ export class PopupNotif {
     if (this.popups.length === 0) return;
 
     const guiData = this.core.dataCache?.gameGUI?.gui_popupNotif;
-    if (!guiData) return;
+    if (!guiData) return; // Wait for data
 
     const canvas = this.core.canvas;
     const scaleX = canvas.width / this.baseWidth;
     const scaleY = canvas.height / this.baseHeight;
 
-    // --- Base Config Values ---
+    // --- Config Values ---
     const baseW = guiData.gui_popupNotif_Width || 420;
-    const baseH = guiData.gui_popupNotif_Hieght || 60;
+    const baseH = guiData.gui_popupNotif_Hieght || 60; // Typo support "Hieght"
+    const basePadding = guiData.gui_popupNotif_Padding || 5;
 
     const popupWidth = baseW * scaleX;
     const popupHeight = baseH * scaleY;
-    const spacing = 10 * scaleY;
+    const spacing = 10 * scaleY; // Space between stack
 
-    const globalOpacity = guiData.gui_popupNotif_Opacity ?? 1;
+    const opacity = guiData.gui_popupNotif_Opacity ?? 1;
     const fontColor = guiData.gui_popupNotif_FontColor || "#fff";
 
     // Border Settings
@@ -231,38 +211,46 @@ export class PopupNotif {
     const posKeyword = (parts[0] || "top").toLowerCase();
     const posMargin = (parseFloat(parts[1]) || 0) * scaleY;
 
-    // Determine Anchors
-    let anchorX = (canvas.width - popupWidth) / 2;
+    // Determine Anchor X
+    let anchorX = (canvas.width - popupWidth) / 2; // Default Center
     if (posKeyword === "left") anchorX = posMargin;
     else if (posKeyword === "right")
       anchorX = canvas.width - popupWidth - posMargin;
 
+    // Determine Anchor Y Base
     let anchorYBase = 0;
     let stackDirection = 1; // 1 = down, -1 = up
 
     if (posKeyword === "bottom") {
       anchorYBase = canvas.height - posMargin - popupHeight;
-      stackDirection = -1;
-    } else {
+      stackDirection = -1; // Stack upwards
+    } else if (
+      posKeyword === "top" ||
+      posKeyword === "center" ||
+      posKeyword === "left" ||
+      posKeyword === "right"
+    ) {
       anchorYBase = posMargin;
-      stackDirection = 1;
+      stackDirection = 1; // Stack downwards
     }
 
     ctx.font = `bold ${fontSize}px ${fontFamily}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+    // --- Render Loop ---
     this.popups.forEach((popup, i) => {
-      // Find style based on popup type (red, blue, default, etc.)
-      const styleData = this.getStyleData(popup.type, guiData);
-
+      // Calculate Y position based on stack index
       const stackOffset = i * (popupHeight + spacing) * stackDirection;
       const x = anchorX;
       const y = anchorYBase + stackOffset + popup.yOffset;
-      const finalAlpha = globalOpacity * popup.alpha;
 
-      // --- STEP 1: DRAW BORDER (Underneath) ---
+      // Apply Global Opacity combined with Fade Opacity
+      const finalAlpha = opacity * popup.alpha;
+
+      // 1. Draw Border (Underneath)
       if (borderThickness > 0) {
+        // Use alpha for border too
         ctx.save();
         ctx.globalAlpha = finalAlpha;
         this.drawStyledBox(
@@ -279,64 +267,25 @@ export class PopupNotif {
         ctx.restore();
       }
 
-      // --- STEP 2: DRAW BACKGROUND (Image OR Color) ---
-      let imgDrawn = false;
+      // 2. Draw Fill (Background)
+      // Note: popup.color is already a hex string from resolveColor. We need to add alpha.
+      const fillStyle = this.hexToRgba(popup.color, finalAlpha);
 
-      // Attempt to load and draw image if link exists
-      if (styleData.img_link && !this.failedImages.has(styleData.img_link)) {
-        const img = this._loadImage(styleData.img_link);
+      // Use drawStyledBox for fill (border thickness 0)
+      // We do this to reuse the rounded corner path logic
+      this.drawStyledBox(
+        ctx,
+        x,
+        y,
+        popupWidth,
+        popupHeight,
+        0,
+        cornerRadii,
+        fillStyle,
+        "transparent"
+      );
 
-        if (img && img.complete && img.naturalWidth > 0) {
-          ctx.save();
-          ctx.globalAlpha = finalAlpha;
-
-          // CASE A: Sprite Sheet (defined sx, sy, swidth, sheight)
-          if (
-            styleData.sx !== undefined &&
-            styleData.sy !== undefined &&
-            styleData.swidth !== undefined &&
-            styleData.sheight !== undefined
-          ) {
-            ctx.drawImage(
-              img,
-              styleData.sx,
-              styleData.sy,
-              styleData.swidth,
-              styleData.sheight,
-              x,
-              y,
-              popupWidth,
-              popupHeight
-            );
-          }
-          // CASE B: Single Image (Stretch)
-          else {
-            ctx.drawImage(img, x, y, popupWidth, popupHeight);
-          }
-
-          ctx.restore();
-          imgDrawn = true;
-        }
-      }
-
-      // Fallback: Solid Color Fill if no image drawn
-      if (!imgDrawn) {
-        const fillStyle = this.hexToRgba(styleData.color || "#333", finalAlpha);
-        // Draw fill with 0 border thickness (border already drawn in Step 1)
-        this.drawStyledBox(
-          ctx,
-          x,
-          y,
-          popupWidth,
-          popupHeight,
-          0,
-          cornerRadii,
-          fillStyle,
-          "transparent"
-        );
-      }
-
-      // --- STEP 3: DRAW TEXT ---
+      // 3. Draw Text
       ctx.fillStyle = this.hexToRgba(fontColor, finalAlpha);
       ctx.fillText(popup.message, x + popupWidth / 2, y + popupHeight / 2);
     });

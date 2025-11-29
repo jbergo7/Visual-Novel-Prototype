@@ -140,5 +140,27 @@
         "sheight": 52
       }
     ]
+  },
+  "gui_popupNotif": {
+    "gui_popupNotif_Opacity": 1,
+    "gui_popupNotif_Padding": 5,
+    "gui_popupNotif_Position": "top 50",
+    "gui_popupNotif_Width": 1020,
+    "gui_popupNotif_Hieght": 50,
+    "gui_popupNotif_FontColor": "#fff",
+    "gui_popupNotif_BorderThickness": 10,
+    "gui_popupNotif_BorderCorner": [0, 0, 30, 30],
+    "gui_popupNotif_BorderColor": "#ffcc95",
+    "gui_popupNotif_BackgroundColors": [
+      {
+        "color_name": "default",
+        "color": "#333333",
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png"
+      },
+      { "color_name": "red", "color": "#c83232" },
+      { "color_name": "green", "color": "#32b45a" },
+      { "color_name": "blue", "color": "#3c78c8" },
+      { "color_name": "gold", "color": "#dcb43c" }
+    ]
   }
 }
