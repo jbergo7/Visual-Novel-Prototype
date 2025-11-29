@@ -11,7 +11,7 @@ export class DialogueChoices {
     this.baseWidth = 1920;
     this.baseHeight = 1080;
 
-    // --- Asset caching & failure tracking ---
+    // --- Asset caching & failure tracking (New) ---
     this.imageCache = {}; // { src: Image }
     this.failedImages = new Set(); // src strings that have permanently failed
 
@@ -21,10 +21,6 @@ export class DialogueChoices {
       hover: null,
       disabled: null,
     };
-
-    // --- BUFFER CANVAS ---
-    // Gumawa ng temporary canvas para dito idrowing ang button bago ilagay sa screen.
-    this._tempCanvas = document.createElement("canvas");
   }
 
   setChoices(choices) {
@@ -69,6 +65,7 @@ export class DialogueChoices {
        ---------- IMAGE HANDLING ----------
        ------------------------- */
 
+  // Load image into cache with robust error handling (Same as DialogueBox)
   _loadImage(src) {
     if (!src) return null;
     if (this.failedImages.has(src)) return null;
@@ -77,12 +74,14 @@ export class DialogueChoices {
 
     const img = new Image();
 
+    // 1. ASYNCHRONOUS Error Handler
     img.onerror = () => {
       console.error("[DialogueChoices] Failed to load image:", src);
       delete this.imageCache[src];
       this.failedImages.add(src);
     };
 
+    // Check zero size on load
     img.onload = () => {
       if (img.naturalWidth === 0 || img.naturalHeight === 0) {
         console.error("[DialogueChoices] Loaded image has zero size:", src);
@@ -91,6 +90,7 @@ export class DialogueChoices {
       }
     };
 
+    // 2. SYNCHRONOUS Error Handler
     try {
       img.src = src;
     } catch (e) {
@@ -103,22 +103,25 @@ export class DialogueChoices {
     return img;
   }
 
+  // Parses the GUI data and preloads images for button sprites
   _ensureButtonSprites(guiData) {
     // Helper to extract array and load images
     const processSpriteArray = (dataArray) => {
-      // Allow length >= 1 (Support single image stretch)
-      if (!Array.isArray(dataArray) || dataArray.length < 1) return null;
-
+      if (!Array.isArray(dataArray) || dataArray.length < 3) return null;
+      // Preload the images
       dataArray.forEach((part) => {
         if (part.img_link) this._loadImage(part.img_link);
       });
       return dataArray;
     };
 
+    // Check and update cache only if data objects changed (reference check)
     const rawNormal = guiData.dialogueChoice_BackgroundImg;
     const rawHover = guiData.dialogueChoice_BackgroundImg_Hover;
     const rawDisabled = guiData.dialogueChoice_BackgroundImg_Disabled;
 
+    // Note: We are doing a simple reassignment. Ideally, we check equality,
+    // but since we only store data references, this is lightweight.
     this.buttonSpriteData.normal = processSpriteArray(rawNormal);
     this.buttonSpriteData.hover = processSpriteArray(rawHover);
     this.buttonSpriteData.disabled = processSpriteArray(rawDisabled);
@@ -128,182 +131,122 @@ export class DialogueChoices {
        ---------- DRAWING HELPERS ----------
        ------------------------- */
 
-  // Draws a sprite button using a BUFFER
-  // Handles both 1-Slice (Single Stretch) and 3-Slice (Tiled with Overlap)
+  // Draws a 3-slice sprite button (Left, Center-Tiled, Right)
+  // Returns true if drawn successfully, false if fallback is needed
   drawSpriteButton(ctx, x, y, width, height, spriteArray) {
-    if (!spriteArray || spriteArray.length === 0) return false;
+    if (!spriteArray || spriteArray.length < 3) return false;
 
-    // --- Prepare Buffer ---
-    const wInt = Math.ceil(width);
-    const hInt = Math.ceil(height);
+    const [leftPart, centerPart, rightPart] = spriteArray;
 
-    if (this._tempCanvas.width !== wInt || this._tempCanvas.height !== hInt) {
-      this._tempCanvas.width = wInt;
-      this._tempCanvas.height = hInt;
-    }
-    const bctx = this._tempCanvas.getContext("2d");
-    bctx.clearRect(0, 0, wInt, hInt);
+    // Validate images
+    const l_img = this._loadImage(leftPart.img_link);
+    const c_img = this._loadImage(centerPart.img_link);
+    const r_img = this._loadImage(rightPart.img_link);
 
-    // ============================================================
-    // CASE A: 1-SLICE (Single Image Stretch)
-    // ============================================================
-    if (spriteArray.length === 1) {
-      const part = spriteArray[0];
-      const img = this._loadImage(part.img_link);
-
-      if (!img || !img.complete || img.naturalWidth === 0) return false;
-
-      // Draw stretched image onto buffer
-      bctx.drawImage(
-        img,
-        part.sx,
-        part.sy,
-        part.swidth,
-        part.sheight, // Source
-        0,
-        0,
-        wInt,
-        hInt // Dest (Buffer)
-      );
-    }
-    // ============================================================
-    // CASE B: 3-SLICE (Left, Center, Right with OVERLAPPING Tiles)
-    // ============================================================
-    else if (spriteArray.length >= 3) {
-      const [leftPart, centerPart, rightPart] = spriteArray;
-
-      const l_img = this._loadImage(leftPart.img_link);
-      const c_img = this._loadImage(centerPart.img_link);
-      const r_img = this._loadImage(rightPart.img_link);
-
-      if (
-        !l_img ||
-        !c_img ||
-        !r_img ||
-        !l_img.complete ||
-        !c_img.complete ||
-        !r_img.complete ||
-        l_img.naturalWidth === 0
-      )
-        return false;
-
-      // Calculate dimensions
-      const dh = hInt;
-      const l_dw = Math.round(leftPart.swidth * (height / leftPart.sheight));
-      const r_dw = Math.round(rightPart.swidth * (height / rightPart.sheight));
-
-      const centerScaleFactor = height / centerPart.sheight;
-      const tileWidth = Math.max(
-        1,
-        Math.round(centerPart.swidth * centerScaleFactor)
-      );
-
-      const startX = 0;
-      const totalWidth = wInt;
-
-      // --- OVERLAP SETTINGS ---
-      const overlapCC = 1; // Overlap sa pagitan ng center tiles
-      const overlapLC = 2; // Overlap ng Left Cap at Center
-
-      // 1. Draw Left Cap
-      bctx.drawImage(
-        l_img,
-        leftPart.sx,
-        leftPart.sy,
-        leftPart.swidth,
-        leftPart.sheight,
-        startX,
-        0,
-        l_dw,
-        dh
-      );
-
-      // 2. Draw Center Tiles (Loop with Overlap)
-      // Simulan ang center na nakapatong sa Left Cap
-      let currentX = startX + l_dw - overlapLC;
-
-      // Ang visual start ng Right Cap
-      const r_start = startX + totalWidth - r_dw;
-
-      // Kailangan nating punuin hanggang sa r_start
-      const totalCover = r_start - currentX;
-
-      // 🔥 IMPORTANTE: Ang step ay binawasan ng overlapCC para magpatong-patong ang tiles
-      const step = tileWidth - overlapCC;
-
-      if (totalCover > 0 && step > 0) {
-        const numSteps = Math.ceil(totalCover / step);
-
-        for (let i = 0; i < numSteps; i++) {
-          let drawW = tileWidth;
-          let sourceW = centerPart.swidth;
-
-          // Check if this is the last tile or exceeds the right cap start
-          // Kung ang kasalukuyang tile ay lalampas sa r_start, i-clip natin
-          const remaining = r_start - currentX;
-
-          if (i === numSteps - 1 || drawW > remaining) {
-            drawW = remaining;
-
-            // Scale source width proportionally kung na-clip
-            if (drawW < tileWidth && drawW > 0) {
-              sourceW = Math.round((drawW / tileWidth) * centerPart.swidth);
-            }
-          }
-
-          if (drawW > 0) {
-            bctx.drawImage(
-              c_img,
-              centerPart.sx,
-              centerPart.sy,
-              sourceW,
-              centerPart.sheight,
-              Math.round(currentX),
-              0,
-              Math.round(drawW),
-              dh
-            );
-          }
-
-          // Advance X position with overlap considered
-          currentX += step;
-        }
-      }
-
-      // 3. Draw Right Cap (Overlapped back to the left)
-      // I-drawing ang Right Cap na may 1px overlap sa huling center tile
-      const r_drawX = r_start - overlapCC;
-
-      bctx.drawImage(
-        r_img,
-        rightPart.sx,
-        rightPart.sy,
-        rightPart.swidth,
-        rightPart.sheight,
-        Math.round(r_drawX),
-        0,
-        r_dw,
-        dh
-      );
-    }
-    // ============================================================
-    // FALLBACK
-    // ============================================================
-    else {
-      return false; // Unsupported array length
+    if (
+      !l_img ||
+      !c_img ||
+      !r_img ||
+      !l_img.complete ||
+      !c_img.complete ||
+      !r_img.complete ||
+      l_img.naturalWidth === 0
+    ) {
+      return false;
     }
 
-    // --- DRAW BUFFER TO SCREEN ---
+    // Extract dimensions from JSON object (using swidth/sheight from your new format)
+    const l_sw = leftPart.swidth,
+      l_sh = leftPart.sheight;
+    const c_sw = centerPart.swidth,
+      c_sh = centerPart.sheight;
+    const r_sw = rightPart.swidth,
+      r_sh = rightPart.sheight;
+
+    // Calculate destination dimensions
+    // We scale the height to fit the button height, and preserve aspect ratio for width
+    const dh = Math.round(height);
+
+    const l_dw = Math.round(l_sw * (height / l_sh));
+    const r_dw = Math.round(r_sw * (height / r_sh));
+
+    // For center tile width, we scale based on height ratio too
+    const centerScaleFactor = height / c_sh;
+    const tileWidth = Math.max(1, Math.round(c_sw * centerScaleFactor));
+
+    const startX = Math.round(x);
+    const startY = Math.round(y);
+    const totalWidth = Math.round(width);
+
+    // Overlap logic (same as dialoguebox to prevent gaps)
+    const overlapCC = 1; // Center-Center overlap
+    const overlapLC = 2; // Left-Center overlap
+
+    // 1. Draw Left Cap
     ctx.drawImage(
-      this._tempCanvas,
-      0,
-      0,
-      wInt,
-      hInt, // Source (Buffer)
-      Math.round(x),
-      Math.round(y),
-      wInt,
-      hInt // Dest (Screen)
+      l_img,
+      leftPart.sx,
+      leftPart.sy,
+      l_sw,
+      l_sh,
+      startX,
+      startY,
+      l_dw,
+      dh
+    );
+
+    // 2. Tile Center
+    // Start drawing center tiles after left cap (minus overlap)
+    let currentX = startX + l_dw - overlapLC;
+    // Stop drawing center tiles before right cap starts
+    const r_start = startX + totalWidth - r_dw;
+    const totalCover = r_start - currentX;
+    const step = tileWidth - overlapCC;
+
+    if (totalCover > 0 && step > 0) {
+      const numSteps = Math.ceil(totalCover / step);
+
+      for (let i = 0; i < numSteps; i++) {
+        let drawW = tileWidth;
+        let sourceW = c_sw;
+
+        // Clip the last tile if it exceeds the space
+        if (i === numSteps - 1) {
+          drawW = r_start - currentX;
+          if (drawW <= 0) break;
+          // Scale source width proportionally
+          if (drawW < tileWidth) {
+            sourceW = Math.round((drawW / tileWidth) * c_sw);
+          }
+        }
+
+        ctx.drawImage(
+          c_img,
+          centerPart.sx,
+          centerPart.sy,
+          sourceW,
+          c_sh,
+          Math.round(currentX),
+          startY,
+          Math.round(drawW),
+          dh
+        );
+        currentX += step;
+      }
+    }
+
+    // 3. Draw Right Cap (overlapped slightly)
+    const r_dx_over = r_start - overlapCC;
+    ctx.drawImage(
+      r_img,
+      rightPart.sx,
+      rightPart.sy,
+      r_sw,
+      r_sh,
+      r_dx_over,
+      startY,
+      r_dw,
+      dh
     );
 
     return true;
@@ -543,22 +486,32 @@ export class DialogueChoices {
       // 1. Try Drawing Sprite
       ctx.save();
       ctx.globalAlpha = opacity;
-
-      let spriteSource = this.buttonSpriteData.normal;
       if (state === "disabled" && this.buttonSpriteData.disabled) {
-        spriteSource = this.buttonSpriteData.disabled;
-      } else if (state === "hover" && this.buttonSpriteData.hover) {
-        spriteSource = this.buttonSpriteData.hover;
-      }
-
-      if (spriteSource) {
         drawn = this.drawSpriteButton(
           ctx,
           x,
           y,
           boxWidth,
           boxHeight,
-          spriteSource
+          this.buttonSpriteData.disabled
+        );
+      } else if (state === "hover" && this.buttonSpriteData.hover) {
+        drawn = this.drawSpriteButton(
+          ctx,
+          x,
+          y,
+          boxWidth,
+          boxHeight,
+          this.buttonSpriteData.hover
+        );
+      } else if (state === "normal" && this.buttonSpriteData.normal) {
+        drawn = this.drawSpriteButton(
+          ctx,
+          x,
+          y,
+          boxWidth,
+          boxHeight,
+          this.buttonSpriteData.normal
         );
       }
       ctx.restore();

@@ -106,7 +106,7 @@ export class DialogueChoices {
   _ensureButtonSprites(guiData) {
     // Helper to extract array and load images
     const processSpriteArray = (dataArray) => {
-      // Allow length >= 1 (Support single image stretch)
+      // UPDATED: Allow length >= 1 (Support single image stretch)
       if (!Array.isArray(dataArray) || dataArray.length < 1) return null;
 
       dataArray.forEach((part) => {
@@ -129,7 +129,7 @@ export class DialogueChoices {
        ------------------------- */
 
   // Draws a sprite button using a BUFFER
-  // Handles both 1-Slice (Single Stretch) and 3-Slice (Tiled with Overlap)
+  // Handles both 1-Slice (Single Stretch) and 3-Slice (Tiled)
   drawSpriteButton(ctx, x, y, width, height, spriteArray) {
     if (!spriteArray || spriteArray.length === 0) return false;
 
@@ -167,7 +167,7 @@ export class DialogueChoices {
       );
     }
     // ============================================================
-    // CASE B: 3-SLICE (Left, Center, Right with OVERLAPPING Tiles)
+    // CASE B: 3-SLICE (Left, Center, Right with Tiling)
     // ============================================================
     else if (spriteArray.length >= 3) {
       const [leftPart, centerPart, rightPart] = spriteArray;
@@ -201,9 +201,8 @@ export class DialogueChoices {
       const startX = 0;
       const totalWidth = wInt;
 
-      // --- OVERLAP SETTINGS ---
-      const overlapCC = 1; // Overlap sa pagitan ng center tiles
-      const overlapLC = 2; // Overlap ng Left Cap at Center
+      const overlapCC = 1;
+      const overlapLC = 2;
 
       // 1. Draw Left Cap
       bctx.drawImage(
@@ -218,69 +217,49 @@ export class DialogueChoices {
         dh
       );
 
-      // 2. Draw Center Tiles (Loop with Overlap)
-      // Simulan ang center na nakapatong sa Left Cap
+      // 2. Draw Center Tiles
       let currentX = startX + l_dw - overlapLC;
-
-      // Ang visual start ng Right Cap
       const r_start = startX + totalWidth - r_dw;
+      const fillTargetX = r_start + overlapCC;
+      const totalCover = fillTargetX - currentX;
 
-      // Kailangan nating punuin hanggang sa r_start
-      const totalCover = r_start - currentX;
-
-      // 🔥 IMPORTANTE: Ang step ay binawasan ng overlapCC para magpatong-patong ang tiles
-      const step = tileWidth - overlapCC;
-
-      if (totalCover > 0 && step > 0) {
-        const numSteps = Math.ceil(totalCover / step);
-
+      if (totalCover > 0) {
+        const numSteps = Math.ceil(totalCover / tileWidth);
         for (let i = 0; i < numSteps; i++) {
           let drawW = tileWidth;
           let sourceW = centerPart.swidth;
 
-          // Check if this is the last tile or exceeds the right cap start
-          // Kung ang kasalukuyang tile ay lalampas sa r_start, i-clip natin
-          const remaining = r_start - currentX;
-
-          if (i === numSteps - 1 || drawW > remaining) {
-            drawW = remaining;
-
-            // Scale source width proportionally kung na-clip
-            if (drawW < tileWidth && drawW > 0) {
+          if (currentX + drawW > fillTargetX) {
+            drawW = fillTargetX - currentX;
+            if (drawW <= 0) break;
+            if (drawW < tileWidth) {
               sourceW = Math.round((drawW / tileWidth) * centerPart.swidth);
             }
           }
 
-          if (drawW > 0) {
-            bctx.drawImage(
-              c_img,
-              centerPart.sx,
-              centerPart.sy,
-              sourceW,
-              centerPart.sheight,
-              Math.round(currentX),
-              0,
-              Math.round(drawW),
-              dh
-            );
-          }
-
-          // Advance X position with overlap considered
-          currentX += step;
+          bctx.drawImage(
+            c_img,
+            centerPart.sx,
+            centerPart.sy,
+            sourceW,
+            centerPart.sheight,
+            Math.round(currentX),
+            0,
+            Math.round(drawW),
+            dh
+          );
+          currentX += tileWidth;
         }
       }
 
-      // 3. Draw Right Cap (Overlapped back to the left)
-      // I-drawing ang Right Cap na may 1px overlap sa huling center tile
-      const r_drawX = r_start - overlapCC;
-
+      // 3. Draw Right Cap
       bctx.drawImage(
         r_img,
         rightPart.sx,
         rightPart.sy,
         rightPart.swidth,
         rightPart.sheight,
-        Math.round(r_drawX),
+        r_start,
         0,
         r_dw,
         dh

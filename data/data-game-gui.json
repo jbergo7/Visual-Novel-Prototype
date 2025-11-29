@@ -56,7 +56,7 @@
     ]
   },
   "gui_dialogueChoice": {
-    "dialogueChoice_Opacity": 0.8,
+    "dialogueChoice_Opacity": 1,
     "dialogueChoice_Padding": 5,
     "dialogueChoice_Margin": 20,
     "dialogueChoice_Width": 1020,
@@ -64,9 +64,78 @@
     "dialogueChoice_BorderThickness": 2,
     "dialogueChoice_ButtonBorderCorner": 20,
     "dialogueChoice_BorderColor": "#fff",
-    "dialogueChoice_FontColor": "#fff",
+    "dialogueChoice_FontColor": "#000",
     "dialogueChoice_BackgroundColor": "#525252",
     "dialogueChoice_BackgroundColor_Hover": "#262626",
-    "dialogueChoice_BackgroundColor_Disabled": "#b0b0b0"
+    "dialogueChoice_BackgroundColor_Disabled": "#b0b0b0",
+    "dialogueChoice_BackgroundImg": [
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 39,
+        "sy": 483,
+        "swidth": 29,
+        "sheight": 52
+      },
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 72,
+        "sy": 483,
+        "swidth": 6,
+        "sheight": 52
+      },
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 83,
+        "sy": 483,
+        "swidth": 29,
+        "sheight": 52
+      }
+    ],
+    "dialogueChoice_BackgroundImg_Hover": [
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 129,
+        "sy": 483,
+        "swidth": 29,
+        "sheight": 52
+      },
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 162,
+        "sy": 483,
+        "swidth": 6,
+        "sheight": 52
+      },
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 173,
+        "sy": 483,
+        "swidth": 29,
+        "sheight": 52
+      }
+    ],
+    "dialogueChoice_BackgroundImg_Disabled": [
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 216,
+        "sy": 483,
+        "swidth": 29,
+        "sheight": 52
+      },
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 249,
+        "sy": 483,
+        "swidth": 6,
+        "sheight": 52
+      },
+      {
+        "img_link": "assets/sprites/gameui/dialogue-sprite-1.png",
+        "sx": 260,
+        "sy": 483,
+        "swidth": 29,
+        "sheight": 52
+      }
+    ]
   }
 }
