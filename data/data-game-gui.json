@@ -1,6 +1,6 @@
 {
   "game_gui_settings": {
-    "fontSize": 25,
+    "fontSize": 20,
     "fontFamily": "Arial, sans-serif"
   },
   "gui_dialoguebox": {
@@ -12,7 +12,7 @@
     "dialogueBox_BorderThickness": 10,
     "dialogueBox_BorderCorner": [0, 0, 30, 30],
     "dialogueBox_BorderColor": "#ffcc95",
-    "dialogueBox_FontColor": "#43321e",
+    "dialogueBox_FontColor": "#fff",
     "dialogueBox_BackgroundColor": "#fef1e1",
     "dialogueBox_SpeakerLength": "short",
     "dialogueBox_SpeakerHeight": 70,
@@ -55,5 +55,18 @@
       295
     ]
   },
-  "gui_dialogueChoice": {}
+  "gui_dialogueChoice": {
+    "dialogueChoice_Opacity": 1,
+    "dialogueChoice_Padding": 5,
+    "dialogueChoice_Margin": 20,
+    "dialogueChoice_Width": 1020,
+    "dialogueChoice_Hieght": 50,
+    "dialogueChoice_BorderThickness": 2,
+    "dialogueChoice_ButtonBorderCorner": 20,
+    "dialogueChoice_BorderColor": "#fff",
+    "dialogueChoice_FontColor": "#fff",
+    "dialogueChoice_BackgroundColor": "rgba(0, 0, 0, 0.6)",
+    "dialogueChoice_BackgroundColor_Hover": "rgba(51, 51, 51, 0.47)",
+    "dialogueChoice_BackgroundColor_Disabled": "rgba(80, 80, 80, 0.5)"
+  }
 }
