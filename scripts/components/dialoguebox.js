@@ -1,15 +1,14 @@
 export class DialogueBox {
   constructor(core) {
-    // Core reference (must provide canvas, baseWidth/baseHeight, dataCache, characters, currentCharacter)
+    // Core reference
     this.core = core;
 
     // --- Typewriter state ---
     this.fullText = "";
     this.displayText = "";
     this.charIndex = 0;
-    this.accumulator = 0; // Used for time accumulation in updateTyping
-    this.lastTime = 0; // Kept for compatibility if needed, but accumulator is preferred
-    this.speed = 20; // ms per char by default (can be overridden by GUI settings)
+    this.accumulator = 0;
+    this.speed = 20;
     this.isTyping = false;
     this.typingFinishedTime = null;
 
@@ -17,31 +16,27 @@ export class DialogueBox {
     this.autoMode = false;
     this.fastForwardMode = false;
 
-    // --- Buttons state (hitboxes updated each render) ---
+    // --- Buttons state ---
     this.autoButton = { x: 0, y: 0, width: 0, height: 0 };
     this.ffButton = { x: 0, y: 0, width: 0, height: 0 };
 
-    // Hover index: -1 none, 0 auto, 1 skip
+    // Hover index
     this.hoverIndex = -1;
     this.mouseMoveHandler = this.handleMouseMove.bind(this);
     this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
 
     // --- Avatar / speaker tracking ---
     this.lastSpeaker = null;
-    this.activeAvatarData = null; // path or [path, sx, sy, sw, sh]
-    this.activeAvatarImage = null; // Image object
+    this.activeAvatarData = null;
+    this.activeAvatarImage = null;
 
-    // --- Asset caching & failure tracking ---
-    this.imageCache = {}; // { src: Image }
-    this.failedImages = new Set(); // src strings that have permanently failed
-
-    // Speaker sprite pieces (arrays or null)
+    // --- Asset caching ---
+    this.imageCache = {};
+    this.failedImages = new Set();
     this.speakerSpriteData = { left: null, center: null, right: null };
-
-    // Dialogue background cached info: { data, image }
     this.dialogueBgImageCache = { data: null, image: null };
 
-    // Configurable ratios (kept from original)
+    // Configurable ratios
     this.speakerMinRatio = 0.08;
     this.speakerMaxRatio = 0.15;
     this.textMinRatio = 0.06;
@@ -49,11 +44,9 @@ export class DialogueBox {
   }
 
   /* -------------------------
-     ---------- IMAGES ----------
-     ------------------------- */
+       ---------- IMAGES ----------
+       ------------------------- */
 
-  // Load image into cache or return existing Image object.
-  // Returns Image object or null on immediate failure.
   _loadImage(src) {
     if (!src) return null;
     if (this.failedImages.has(src)) return null;
@@ -62,18 +55,14 @@ export class DialogueBox {
 
     const img = new Image();
 
-    // 1. ASYNCHRONOUS Error Handler
     img.onerror = () => {
       console.error("[DialogueBox] Failed to load image:", src);
       delete this.imageCache[src];
       this.failedImages.add(src);
-
-      // If it was used as dialogue bg, nullify it to force fallback immediately
       if (this.dialogueBgImageCache.image === img)
         this.dialogueBgImageCache.image = null;
     };
 
-    // Optional: Check zero size on load
     img.onload = () => {
       if (img.naturalWidth === 0 || img.naturalHeight === 0) {
         console.error("[DialogueBox] Loaded image has zero size:", src);
@@ -84,7 +73,6 @@ export class DialogueBox {
       }
     };
 
-    // 2. SYNCHRONOUS Error Handler
     try {
       img.src = src;
     } catch (e) {
@@ -97,11 +85,8 @@ export class DialogueBox {
     return img;
   }
 
-  // Ensure the dialogue background image object is set (or null when no valid image)
   _ensureDialogueBgImage(guiData) {
     const bgData = guiData?.dialogueBox_BackgroundImg ?? null;
-
-    // Deep equality check for array data or string to avoid unnecessary reloads
     const isSameData =
       this.dialogueBgImageCache.data === bgData ||
       (Array.isArray(this.dialogueBgImageCache.data) &&
@@ -111,7 +96,7 @@ export class DialogueBox {
           (val, index) => val === bgData[index]
         ));
 
-    if (isSameData) return; // nothing changed
+    if (isSameData) return;
 
     this.dialogueBgImageCache.data = bgData;
     this.dialogueBgImageCache.image = null;
@@ -127,27 +112,16 @@ export class DialogueBox {
       src = bgData[0];
     }
 
-    if (!src) {
-      // no image configured
-      return;
-    }
-
-    if (this.failedImages.has(src)) {
-      // Image previously failed; do not attempt again
-      return;
-    }
-
+    if (!src || this.failedImages.has(src)) return;
     const img = this._loadImage(src);
     if (img) this.dialogueBgImageCache.image = img;
   }
 
-  // Ensure speaker sprite pieces are remembered and their images are requested
   _ensureSpeakerSpriteData(guiData) {
     const left = guiData?.dialogueBox_SpeakerBackgroundImg_left ?? null;
     const center = guiData?.dialogueBox_SpeakerBackgroundImg_Center ?? null;
     const right = guiData?.dialogueBox_SpeakerBackgroundImg_Right ?? null;
 
-    // Only update if changed (simple ref check is usually enough for config objects)
     if (
       this.speakerSpriteData.left !== left ||
       this.speakerSpriteData.center !== center ||
@@ -157,7 +131,6 @@ export class DialogueBox {
       this.speakerSpriteData.center = center;
       this.speakerSpriteData.right = right;
 
-      // Preload images for each piece
       if (left && Array.isArray(left) && left[0]) this._loadImage(left[0]);
       if (center && Array.isArray(center) && center[0])
         this._loadImage(center[0]);
@@ -166,13 +139,12 @@ export class DialogueBox {
   }
 
   /* -------------------------
-     ---------- TYPEWRITER ----------
-     ------------------------- */
+       ---------- TYPEWRITER ----------
+       ------------------------- */
 
   startTyping(newText) {
     this.fullText = newText ?? "";
     if (this.fastForwardMode) {
-      // Immediately show all text if fast-forward mode
       this.displayText = this.fullText;
       this.charIndex = this.fullText.length;
       this.isTyping = false;
@@ -217,13 +189,13 @@ export class DialogueBox {
   }
 
   /* -------------------------
-     ---------- INPUT (mouse) ----------
-     ------------------------- */
+       ---------- INPUT ----------
+       ------------------------- */
 
   handleMouseMove(e) {
     const rect = this.core.canvas.getBoundingClientRect();
     const scaleX = this.core.canvas.width / rect.width;
-    const scaleY = this.core.canvas.height / rect.height; // Fixed: use rect.height
+    const scaleY = this.core.canvas.height / rect.height;
     const mouseX = (e.clientX - rect.left) * scaleX;
     const mouseY = (e.clientY - rect.top) * scaleY;
 
@@ -273,8 +245,8 @@ export class DialogueBox {
   }
 
   /* -------------------------
-     ---------- HELPERS ----------
-     ------------------------- */
+       ---------- HELPERS ----------
+       ------------------------- */
 
   hexToRgba(hex, alpha = 1) {
     if (!hex || hex[0] !== "#" || (hex.length !== 7 && hex.length !== 4)) {
@@ -302,7 +274,6 @@ export class DialogueBox {
     return [scaled, scaled, scaled, scaled];
   }
 
-  // draw a rounded rect + outward stroke border (keeps behavior consistent)
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
     const resolved = Array.isArray(radii)
       ? radii
@@ -310,13 +281,13 @@ export class DialogueBox {
     const [tl, tr, br, bl] = resolved;
     const hasRadius = tl > 0 || tr > 0 || br > 0 || bl > 0;
 
+    // Draw Background
     ctx.fillStyle = bgColor;
     ctx.beginPath();
     if (hasRadius) {
       if (ctx.roundRect) {
         ctx.roundRect(x, y, w, h, resolved);
       } else {
-        // Fallback manual arc drawing
         ctx.moveTo(x + tl, y);
         ctx.lineTo(x + w - tr, y);
         ctx.quadraticCurveTo(x + w, y, x + w, y + tr);
@@ -332,6 +303,7 @@ export class DialogueBox {
     }
     ctx.fill();
 
+    // Draw Border
     if (thickness > 0) {
       ctx.lineWidth = thickness;
       ctx.strokeStyle = borderColor;
@@ -342,29 +314,12 @@ export class DialogueBox {
         bh = h + thickness;
       const outerRadii = resolved.map((r) => (r > 0 ? r + offset : 0));
       ctx.beginPath();
-      const [o_tl, o_tr, o_br, o_bl] = outerRadii;
-      const hasOuterRadius = o_tl > 0 || o_tr > 0 || o_br > 0 || o_bl > 0;
-      if (hasOuterRadius) {
-        if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
-        else {
-          ctx.moveTo(bx + o_tl, by);
-          ctx.lineTo(bx + bw - o_tr, by);
-          ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + o_tr);
-          ctx.lineTo(bx + bw, by + bh - o_br);
-          ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - o_br, by + bh);
-          ctx.lineTo(bx + o_bl, by + bh);
-          ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - o_bl);
-          ctx.lineTo(bx, by + o_tl);
-          ctx.quadraticCurveTo(bx, by, bx + o_tl, by);
-        }
-      } else {
-        ctx.rect(bx, by, bw, bh);
-      }
+      if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
+      else ctx.rect(bx, by, bw, bh);
       ctx.stroke();
     }
   }
 
-  // Speaker sprite tiling (keeps robust overlap logic)
   drawSpeakerSpriteBox(ctx, boxX, boxY, boxWidth, boxHeight, spriteData) {
     const leftData = spriteData.left,
       centerData = spriteData.center,
@@ -377,13 +332,14 @@ export class DialogueBox {
     const l_img = this.imageCache[l_src],
       c_img = this.imageCache[c_src],
       r_img = this.imageCache[r_src];
-    if (!l_img || !c_img || !r_img) return false;
-    if (!l_img.complete || !c_img.complete || !r_img.complete) return false;
-    // Safety check for zero size images
     if (
-      l_img.naturalWidth === 0 ||
-      c_img.naturalWidth === 0 ||
-      r_img.naturalWidth === 0
+      !l_img ||
+      !c_img ||
+      !r_img ||
+      !l_img.complete ||
+      !c_img.complete ||
+      !r_img.complete ||
+      l_img.naturalWidth === 0
     )
       return false;
 
@@ -401,15 +357,15 @@ export class DialogueBox {
     const l_dy = Math.round(boxY);
     const box_w_rounded = Math.round(boxWidth);
 
-    const overlapCC = 1; // center-center overlap
-    const overlapLC = 2; // left-center overlap
+    const overlapCC = 1;
+    const overlapLC = 2;
     const step = tileWidth - overlapCC;
     if (step <= 0) return false;
 
-    // Draw left
+    // Left
     ctx.drawImage(l_img, l_sx, l_sy, l_sw, l_sh, l_dx, l_dy, l_dw, dh);
 
-    // Center tiles
+    // Center
     let currentX = l_dx + l_dw - overlapLC;
     const r_start = l_dx + box_w_rounded - r_dw;
     const totalCover = r_start - currentX;
@@ -421,7 +377,6 @@ export class DialogueBox {
         if (i === numSteps - 1) {
           drawW = r_start - currentX;
           if (drawW <= 0) break;
-          // If needed, clip source width proportional to remaining draw width
           if (drawW < tileWidth)
             sourceW = Math.round((drawW / tileWidth) * c_sw);
         }
@@ -440,14 +395,13 @@ export class DialogueBox {
       }
     }
 
-    // Draw right piece overlapped by 1px with last center tile
+    // Right
     const r_dx_over = r_start - overlapCC;
     ctx.drawImage(r_img, r_sx, r_sy, r_sw, r_sh, r_dx_over, l_dy, r_dw, dh);
 
     return true;
   }
 
-  // Wrap text into lines using ctx.measureText
   wrapText(ctx, text, maxWidth) {
     if (!text) return [""];
     const words = text.split(" ");
@@ -467,14 +421,11 @@ export class DialogueBox {
   }
 
   /* -------------------------
-     ---------- MAIN RENDER ----------
-     ------------------------- */
+       ---------- MAIN RENDER ----------
+       ------------------------- */
 
-  // render(ctx, speaker, text) - main entry (keeps same signature)
   render(ctx, speaker, text) {
-    // Start typing if text changed
     if (this.fullText !== text) this.startTyping(text);
-
     this.updateTyping(16.67);
 
     const canvas = this.core.canvas;
@@ -484,7 +435,6 @@ export class DialogueBox {
     const guiData = this.core.dataCache?.gameGUI?.gui_dialoguebox;
     const globalSettings = this.core.dataCache?.gameGUI?.game_gui_settings;
 
-    // Fallback minimal box if gui missing
     if (!guiData || !globalSettings) {
       ctx.fillStyle = "rgba(0,0,0,0.8)";
       const defaultBoxHeight = canvas.height * 0.25;
@@ -497,7 +447,7 @@ export class DialogueBox {
       return;
     }
 
-    // --- Layout & Scaling ---
+    // --- Layout ---
     const dialogueBaseHeight = guiData.dialogueBox_Hieght || 300;
     const dialogueBaseWidth = guiData.dialogueBox_Width || 1920;
     const boxHeight = (dialogueBaseHeight / baseHeight) * canvas.height;
@@ -505,8 +455,22 @@ export class DialogueBox {
 
     const textMarginX =
       (guiData.dialogueBox_Padding ?? 10) * (canvas.width / baseWidth);
+
+    // --- Borders ---
     const borderThickness =
       (guiData.dialogueBox_BorderThickness ?? 0) * (canvas.width / baseWidth);
+    const speakerBorderThickness =
+      (guiData.dialogueBox_SpeakerBorderThickness ?? 0) *
+      (canvas.width / baseWidth);
+
+    // --- Colors ---
+    const borderColor = guiData.dialogueBox_BorderColor ?? "#fff";
+    // Get speaker border color, fall back to "SpeakerColor" from prev prompt, then main border color
+    const speakerBorderColor =
+      guiData.dialogueBox_SpeakerBorderColor ??
+      guiData.dialogueBox_SpeakerColor ??
+      borderColor;
+
     const fixedAvatarPaddingX = 20 * (canvas.width / baseWidth);
     const borderButtonThickness =
       (guiData.dialogueBox_ButtonBorderThickness ?? 0) *
@@ -517,7 +481,7 @@ export class DialogueBox {
     const bgButtonColorHover =
       guiData.dialogueBox_ButtonBackgroundColor_Hover ?? bgButtonColor;
 
-    // Position string logic (e.g., "bottom 0")
+    // Position logic
     const positionString = guiData.dialogueBox_Position ?? "bottom 0";
     const parts = positionString
       .split(" ")
@@ -552,14 +516,12 @@ export class DialogueBox {
         break;
     }
 
-    // Colors & fonts
     const bgColor = guiData.dialogueBox_BackgroundColor ?? "#1A1A1A";
     const bgSpeakerColor =
       guiData.dialogueBox_SpeakerBackgroundColor ?? "#1A1A1A";
     const fontSpeakerColor = guiData.dialogueBox_SpeakerFontColor ?? "#fff";
     const opacity = guiData.dialogueBox_Opacity ?? 0.9;
     const fontColor = guiData.dialogueBox_FontColor ?? "#fff";
-    const borderColor = guiData.dialogueBox_BorderColor ?? "#fff";
     const fontFamily = globalSettings.fontFamily ?? "Arial, sans-serif";
 
     const dialogueBoxFillStyle = this.hexToRgba(bgColor, opacity);
@@ -570,7 +532,6 @@ export class DialogueBox {
     const textFontSize = baseFontSize * 1.0;
     const speakerFontSize = baseFontSize * 1.3;
 
-    // speaker box height calculation
     const speakerPaddingY = speakerFontSize * 0.3;
     const speakerBaseHeight = guiData.dialogueBox_SpeakerHeight || 0;
     const speakerBoxHeight =
@@ -578,11 +539,9 @@ export class DialogueBox {
         ? speakerBaseHeight * (canvas.height / baseHeight)
         : speakerFontSize * 1.3 + speakerPaddingY * 2;
 
-    // Ensure assets (speaker sprites + bg image) are requested
     this._ensureSpeakerSpriteData(guiData);
     this._ensureDialogueBgImage(guiData);
 
-    // Radii
     const scaleFactor = canvas.width / baseWidth;
     const dialogueRadii = this.resolveRadius(
       guiData.dialogueBox_BorderCorner ?? 0,
@@ -597,7 +556,6 @@ export class DialogueBox {
       scaleFactor
     );
 
-    // --- Avatar management (load if speaker changed) ---
     if (this.lastSpeaker !== speaker) {
       this.lastSpeaker = speaker;
       const charData = this.getSpeakerData(speaker);
@@ -612,7 +570,6 @@ export class DialogueBox {
       }
     }
 
-    // Calculate avatar geometry
     let contentOffsetX = textMarginX;
     let avatarWidth = 0,
       avatarHeight = 0,
@@ -623,7 +580,7 @@ export class DialogueBox {
       this.activeAvatarImage.complete &&
       this.activeAvatarData
     ) {
-      const avatarRatio = 1; // as original
+      const avatarRatio = 1;
       avatarHeight = boxHeight + speakerBoxHeight;
       avatarWidth = avatarHeight * avatarRatio;
       avatarX = boxX + fixedAvatarPaddingX;
@@ -631,7 +588,9 @@ export class DialogueBox {
       contentOffsetX = fixedAvatarPaddingX + avatarWidth + textMarginX;
     }
 
-    // --- Draw main dialogue box (image preferred, else color) ---
+    // ==========================================================
+    // DRAW MAIN DIALOGUE BOX
+    // ==========================================================
     const bgImg = this.dialogueBgImageCache.image;
     const bgImgData = this.dialogueBgImageCache.data;
     let bgDrawn = false;
@@ -642,6 +601,22 @@ export class DialogueBox {
       bgImg.complete &&
       bgImg.naturalWidth > 0;
 
+    // 1. Draw Main Border (Underneath)
+    if (borderThickness > 0) {
+      this.drawStyledBox(
+        ctx,
+        boxX,
+        boxY,
+        boxWidth,
+        boxHeight,
+        borderThickness,
+        dialogueRadii,
+        "rgba(0,0,0,0)",
+        borderColor
+      );
+    }
+
+    // 2. Draw Main BG
     if (bgImgReady) {
       ctx.save();
       ctx.globalAlpha = opacity;
@@ -662,14 +637,16 @@ export class DialogueBox {
         boxY,
         boxWidth,
         boxHeight,
-        borderThickness,
+        0,
         dialogueRadii,
         dialogueBoxFillStyle,
         borderColor
       );
     }
 
-    // --- Draw speaker name box (sprite preferred) ---
+    // ==========================================================
+    // DRAW SPEAKER NAME BOX
+    // ==========================================================
     const resolvedSpeaker = this.resolveSpeakerName(speaker);
     if (resolvedSpeaker) {
       ctx.font = `bold ${speakerFontSize}px ${fontFamily}`;
@@ -693,6 +670,22 @@ export class DialogueBox {
         textAlign = "center";
       }
 
+      // 1. Draw Speaker Border (Underneath) with specific color
+      if (speakerBorderThickness > 0) {
+        this.drawStyledBox(
+          ctx,
+          speakerBoxX,
+          speakerBoxY,
+          speakerBoxWidth,
+          speakerBoxHeight,
+          speakerBorderThickness,
+          speakerRadii,
+          "rgba(0,0,0,0)",
+          speakerBorderColor // Use distinct speaker border color
+        );
+      }
+
+      // 2. Draw Speaker BG (Sprite or Solid)
       let speakerBoxDrawn = false;
       const spriteData = {
         left: this.speakerSpriteData.left,
@@ -709,6 +702,8 @@ export class DialogueBox {
           spriteData
         );
       }
+
+      // Fallback Speaker BG
       if (!speakerBoxDrawn) {
         this.drawStyledBox(
           ctx,
@@ -716,10 +711,10 @@ export class DialogueBox {
           speakerBoxY,
           speakerBoxWidth,
           speakerBoxHeight,
-          borderThickness,
+          0,
           speakerRadii,
           speakerBoxFillStyle,
-          borderColor
+          speakerBorderColor
         );
       }
 
@@ -748,7 +743,7 @@ export class DialogueBox {
       ctx.fillText(lines[i], textX, textY + i * lineHeight);
     }
 
-    // --- Avatar (draw on top) ---
+    // --- Avatar ---
     if (
       avatarWidth > 0 &&
       this.activeAvatarImage &&
@@ -779,7 +774,7 @@ export class DialogueBox {
       }
     }
 
-    // --- Buttons (Auto + Skip) ---
+    // --- Buttons ---
     this.renderButtons(
       ctx,
       boxX,
@@ -797,10 +792,6 @@ export class DialogueBox {
       guiData
     );
   }
-
-  /* -------------------------
-     ---------- BUTTONS ----------
-     ------------------------- */
 
   renderButtons(
     ctx,
@@ -833,7 +824,6 @@ export class DialogueBox {
     const autoActiveColor =
       guiData.dialogueBox_ButtonBackgroundColor_Auto ?? "#35a440";
 
-    // Skip button
     const ffLabel = "Skip";
     const ffMetrics = ctx.measureText(ffLabel);
     const ffWidth = ffMetrics.width + btnPaddingX * 2;
@@ -863,7 +853,6 @@ export class DialogueBox {
     ctx.textBaseline = "middle";
     ctx.fillText(ffLabel, ffX + ffWidth / 2, btnY + btnHeight / 2);
 
-    // Auto button
     const autoLabel = this.autoMode ? "Auto ON" : "Auto";
     const autoMetrics = ctx.measureText(autoLabel);
     const autoWidth = autoMetrics.width + btnPaddingX * 2;
@@ -895,10 +884,6 @@ export class DialogueBox {
     ctx.fillText(autoLabel, autoX + autoWidth / 2, btnY + btnHeight / 2);
   }
 
-  /* -------------------------
-     ---------- UTILITIES / LOOKUPS ----------
-     ------------------------- */
-
   resolveSpeakerName(speaker) {
     if (speaker === "[player]")
       return this.core.currentCharacter?.name ?? "Player";
@@ -910,13 +895,10 @@ export class DialogueBox {
     return (this.core.characters ?? []).find((c) => c.name === speaker);
   }
 
-  // Call to explicitly free listeners + optionally cached images (if needed)
   destroy({ keepImages = true } = {}) {
     try {
       this.core.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
-    } catch (e) {
-      // ignore
-    }
+    } catch (e) {}
     if (!keepImages) {
       this.imageCache = {};
       this.failedImages = new Set();

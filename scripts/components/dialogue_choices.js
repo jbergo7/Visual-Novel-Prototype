@@ -23,7 +23,6 @@ export class DialogueChoices {
     };
 
     // --- BUFFER CANVAS ---
-    // Gumawa ng temporary canvas para dito idrowing ang button bago ilagay sa screen.
     this._tempCanvas = document.createElement("canvas");
   }
 
@@ -104,11 +103,8 @@ export class DialogueChoices {
   }
 
   _ensureButtonSprites(guiData) {
-    // Helper to extract array and load images
     const processSpriteArray = (dataArray) => {
-      // Allow length >= 1 (Support single image stretch)
       if (!Array.isArray(dataArray) || dataArray.length < 1) return null;
-
       dataArray.forEach((part) => {
         if (part.img_link) this._loadImage(part.img_link);
       });
@@ -128,8 +124,6 @@ export class DialogueChoices {
        ---------- DRAWING HELPERS ----------
        ------------------------- */
 
-  // Draws a sprite button using a BUFFER
-  // Handles both 1-Slice (Single Stretch) and 3-Slice (Tiled with Overlap)
   drawSpriteButton(ctx, x, y, width, height, spriteArray) {
     if (!spriteArray || spriteArray.length === 0) return false;
 
@@ -144,34 +138,26 @@ export class DialogueChoices {
     const bctx = this._tempCanvas.getContext("2d");
     bctx.clearRect(0, 0, wInt, hInt);
 
-    // ============================================================
-    // CASE A: 1-SLICE (Single Image Stretch)
-    // ============================================================
+    // CASE A: 1-SLICE
     if (spriteArray.length === 1) {
       const part = spriteArray[0];
       const img = this._loadImage(part.img_link);
-
       if (!img || !img.complete || img.naturalWidth === 0) return false;
-
-      // Draw stretched image onto buffer
       bctx.drawImage(
         img,
         part.sx,
         part.sy,
         part.swidth,
-        part.sheight, // Source
+        part.sheight,
         0,
         0,
         wInt,
-        hInt // Dest (Buffer)
+        hInt
       );
     }
-    // ============================================================
-    // CASE B: 3-SLICE (Left, Center, Right with OVERLAPPING Tiles)
-    // ============================================================
+    // CASE B: 3-SLICE (Tiled)
     else if (spriteArray.length >= 3) {
       const [leftPart, centerPart, rightPart] = spriteArray;
-
       const l_img = this._loadImage(leftPart.img_link);
       const c_img = this._loadImage(centerPart.img_link);
       const r_img = this._loadImage(rightPart.img_link);
@@ -187,11 +173,9 @@ export class DialogueChoices {
       )
         return false;
 
-      // Calculate dimensions
       const dh = hInt;
       const l_dw = Math.round(leftPart.swidth * (height / leftPart.sheight));
       const r_dw = Math.round(rightPart.swidth * (height / rightPart.sheight));
-
       const centerScaleFactor = height / centerPart.sheight;
       const tileWidth = Math.max(
         1,
@@ -201,11 +185,10 @@ export class DialogueChoices {
       const startX = 0;
       const totalWidth = wInt;
 
-      // --- OVERLAP SETTINGS ---
-      const overlapCC = 1; // Overlap sa pagitan ng center tiles
-      const overlapLC = 2; // Overlap ng Left Cap at Center
+      const overlapCC = 1;
+      const overlapLC = 2;
 
-      // 1. Draw Left Cap
+      // Left
       bctx.drawImage(
         l_img,
         leftPart.sx,
@@ -218,39 +201,26 @@ export class DialogueChoices {
         dh
       );
 
-      // 2. Draw Center Tiles (Loop with Overlap)
-      // Simulan ang center na nakapatong sa Left Cap
+      // Center
       let currentX = startX + l_dw - overlapLC;
-
-      // Ang visual start ng Right Cap
       const r_start = startX + totalWidth - r_dw;
-
-      // Kailangan nating punuin hanggang sa r_start
-      const totalCover = r_start - currentX;
-
-      // 🔥 IMPORTANTE: Ang step ay binawasan ng overlapCC para magpatong-patong ang tiles
+      const fillTargetX = r_start + overlapCC;
+      const totalCover = fillTargetX - currentX;
       const step = tileWidth - overlapCC;
 
       if (totalCover > 0 && step > 0) {
         const numSteps = Math.ceil(totalCover / step);
-
         for (let i = 0; i < numSteps; i++) {
           let drawW = tileWidth;
           let sourceW = centerPart.swidth;
-
-          // Check if this is the last tile or exceeds the right cap start
-          // Kung ang kasalukuyang tile ay lalampas sa r_start, i-clip natin
           const remaining = r_start - currentX;
 
           if (i === numSteps - 1 || drawW > remaining) {
             drawW = remaining;
-
-            // Scale source width proportionally kung na-clip
             if (drawW < tileWidth && drawW > 0) {
               sourceW = Math.round((drawW / tileWidth) * centerPart.swidth);
             }
           }
-
           if (drawW > 0) {
             bctx.drawImage(
               c_img,
@@ -264,16 +234,12 @@ export class DialogueChoices {
               dh
             );
           }
-
-          // Advance X position with overlap considered
           currentX += step;
         }
       }
 
-      // 3. Draw Right Cap (Overlapped back to the left)
-      // I-drawing ang Right Cap na may 1px overlap sa huling center tile
+      // Right
       const r_drawX = r_start - overlapCC;
-
       bctx.drawImage(
         r_img,
         rightPart.sx,
@@ -285,31 +251,26 @@ export class DialogueChoices {
         r_dw,
         dh
       );
-    }
-    // ============================================================
-    // FALLBACK
-    // ============================================================
-    else {
-      return false; // Unsupported array length
+    } else {
+      return false;
     }
 
-    // --- DRAW BUFFER TO SCREEN ---
+    // Draw Buffer to Screen
     ctx.drawImage(
       this._tempCanvas,
       0,
       0,
       wInt,
-      hInt, // Source (Buffer)
+      hInt,
       Math.round(x),
       Math.round(y),
       wInt,
-      hInt // Dest (Screen)
+      hInt
     );
 
     return true;
   }
 
-  // Helper: Converts Hex to RGBA
   hexToRgba(color, globalAlpha = 1) {
     if (!color) return `rgba(0,0,0,${globalAlpha})`;
     if (color.startsWith("rgb")) return color;
@@ -330,7 +291,6 @@ export class DialogueChoices {
     return color;
   }
 
-  // Helper: Resolves corner radius
   resolveRadius(rawRadius, scale) {
     if (Array.isArray(rawRadius) && rawRadius.length === 4) {
       return rawRadius.map((r) => r * scale);
@@ -340,7 +300,6 @@ export class DialogueChoices {
     return [scaled, scaled, scaled, scaled];
   }
 
-  // Helper: Draws a styled box (Fallback)
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
     const resolved = Array.isArray(radii)
       ? radii
@@ -383,7 +342,7 @@ export class DialogueChoices {
 
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
-      else ctx.rect(bx, by, bw, bh); // Fallback simple rect for border
+      else ctx.rect(bx, by, bw, bh);
       ctx.stroke();
     }
   }
@@ -538,12 +497,27 @@ export class DialogueChoices {
       if (choice.disabled) state = "disabled";
       else if (i === this.hoverIndex) state = "hover";
 
-      let drawn = false;
+      // --- RENDERING ORDER MODIFIED: BORDER FIRST ---
 
-      // 1. Try Drawing Sprite
+      // 1. DRAW BORDER FIRST (So it appears BEHIND the image)
+      if (borderThickness > 0) {
+        this.drawStyledBox(
+          ctx,
+          x,
+          y,
+          boxWidth,
+          boxHeight,
+          borderThickness,
+          radii,
+          "rgba(0,0,0,0)", // Transparent Fill, Stroke only
+          borderColor
+        );
+      }
+
+      // 2. DRAW SPRITE (If available)
+      let drawn = false;
       ctx.save();
       ctx.globalAlpha = opacity;
-
       let spriteSource = this.buttonSpriteData.normal;
       if (state === "disabled" && this.buttonSpriteData.disabled) {
         spriteSource = this.buttonSpriteData.disabled;
@@ -563,26 +537,27 @@ export class DialogueChoices {
       }
       ctx.restore();
 
-      // 2. Fallback to Solid Color if Sprite Failed or Missing
+      // 3. FALLBACK BG (If Sprite Failed)
       if (!drawn) {
         let currentBg = bgNormal;
         if (state === "disabled") currentBg = bgDisabled;
         else if (state === "hover") currentBg = bgHover;
 
+        // Note: Border Thickness is 0 here because we drew the border already in Step 1
         this.drawStyledBox(
           ctx,
           x,
           y,
           boxWidth,
           boxHeight,
-          borderThickness,
+          0,
           radii,
           currentBg,
           borderColor
         );
       }
 
-      // Draw Text
+      // 4. DRAW TEXT
       ctx.fillStyle = choice.disabled
         ? "rgba(150, 150, 150, 0.7)"
         : this.hexToRgba(fontColor, 1);
