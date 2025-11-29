@@ -185,5 +185,15 @@
 
     "gui_menu_BackgroundImg": [],
     "gui_menu_ButtonBackgroundImg": []
+  },
+  "gui_header": {
+    "header_HeightRatio": 0.06,
+    "header_BackgroundColor": "#2a1f11",
+    "header_Opacity": 0.95,
+    "header_BorderBottomThickness": 4,
+    "header_BorderBottomColor": "#ffcc95",
+    "header_FontColor": "#fff",
+    "header_FontSize": 20,
+    "header_FontFamily": "Arial, sans-serif"
   }
 }
