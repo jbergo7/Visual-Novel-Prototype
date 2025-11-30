@@ -3,6 +3,24 @@
     "fontSize": 20,
     "fontFamily": "Arial, sans-serif"
   },
+  "gui_settings": {
+    "gui_settings_Width": 900,
+    "gui_settings_Height": 600,
+    "gui_settings_Padding": 50,
+    "gui_settings_Opacity": 0.98,
+    "gui_settings_BackgroundColor": "#fef1e1",
+    "gui_settings_BorderThickness": 10,
+    "gui_settings_BorderColor": "#ffcc95",
+    "gui_settings_BorderCorner": [20, 20, 20, 20],
+
+    "gui_settings_TitleFontSize": 50,
+    "gui_settings_TitleColor": "#43321e",
+    "gui_settings_LabelColor": "#43321e",
+
+    "gui_settings_SliderTrackColor": "#e6cba5",
+    "gui_settings_SliderKnobColor": "#c88b4b",
+    "gui_settings_Gap": 40
+  },
   "gui_titlescreen": {
     "gui_titlescreen_TitleFontSize": 70,
     "gui_titlescreen_ButtonFontSize": 20,

@@ -1,12 +1,7 @@
-import SettingsPopup from "./settings_popup.js"; // 🔥 Import Settings
-
 export default class MenuPopup {
   constructor(core) {
     this.core = core;
     this.visible = false;
-
-    // 🔥 Initialize Settings Popup inside Menu
-    this.settingsPopup = new SettingsPopup(core);
 
     // Base Resolution
     this.baseWidth = 1920;
@@ -41,11 +36,6 @@ export default class MenuPopup {
   dispose() {
     this.core.canvas.removeEventListener("mousemove", this._moveHandler);
     this.core.canvas.removeEventListener("click", this._clickHandler);
-
-    // 🔥 Clean up Settings listeners too
-    if (this.settingsPopup) {
-      this.settingsPopup.dispose();
-    }
   }
 
   open() {
@@ -55,8 +45,6 @@ export default class MenuPopup {
   close() {
     this.visible = false;
     this.hoverIndex = -1;
-    // Close settings too if menu closes (optional, safer UI flow)
-    if (this.settingsPopup) this.settingsPopup.close();
   }
 
   toggle() {
@@ -65,8 +53,8 @@ export default class MenuPopup {
   }
 
   /* -------------------------
-        ---------- IMAGE HELPERS ----------
-        ------------------------- */
+       ---------- IMAGE HELPERS ----------
+       ------------------------- */
   _loadImage(src) {
     if (!src) return null;
     if (this.failedImages.has(src)) return null;
@@ -90,8 +78,8 @@ export default class MenuPopup {
   }
 
   /* -------------------------
-        ---------- DRAWING HELPERS ----------
-        ------------------------- */
+       ---------- DRAWING HELPERS ----------
+       ------------------------- */
 
   hexToRgba(color, alpha = 1) {
     if (!color) return `rgba(0,0,0,${alpha})`;
@@ -165,17 +153,11 @@ export default class MenuPopup {
   }
 
   /* -------------------------
-        ---------- INPUT HANDLING ----------
-        ------------------------- */
+       ---------- INPUT HANDLING ----------
+       ------------------------- */
 
   onMouseMove(e) {
     if (!this.visible) return;
-
-    // 🔥 Block hover on menu if Settings is open
-    if (this.settingsPopup.visible) {
-      this.hoverIndex = -1;
-      return;
-    }
 
     const rect = this.core.canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -199,9 +181,6 @@ export default class MenuPopup {
   onClick(e) {
     if (!this.visible) return;
 
-    // 🔥 Block click on menu if Settings is open
-    if (this.settingsPopup.visible) return;
-
     const index = this.hoverIndex;
     if (index === -1) return;
 
@@ -223,8 +202,7 @@ export default class MenuPopup {
         break;
 
       case "settings":
-        // 🔥 Open Settings Popup
-        this.settingsPopup.open();
+        console.log("Settings clicked");
         break;
 
       case "title":
@@ -239,8 +217,8 @@ export default class MenuPopup {
   }
 
   /* -------------------------
-        ---------- RENDER ----------
-        ------------------------- */
+       ---------- RENDER ----------
+       ------------------------- */
 
   render(ctx) {
     if (!this.visible) return;
@@ -295,7 +273,8 @@ export default class MenuPopup {
       );
     }
 
-    // 2. Background
+    // 2. Background (Image or Color)
+    // (Logic for image background can be added here similar to DialogueBox if you add sprites to JSON later)
     this.drawStyledBox(
       ctx,
       menuX,
@@ -347,9 +326,7 @@ export default class MenuPopup {
       // Cache position for hit detection
       this.layoutCache.buttons.push({ x: btnX, y: currentY, w: btnW, h: btnH });
 
-      // 🔥 Force "no hover" visual if Settings is open
-      const isHover = this.hoverIndex === i && !this.settingsPopup.visible;
-
+      const isHover = this.hoverIndex === i;
       const currentBg = isHover
         ? this.hexToRgba(btnBgHover, 1)
         : this.hexToRgba(btnBgColor, 1);
@@ -388,8 +365,5 @@ export default class MenuPopup {
 
       currentY += btnH + btnSpacing;
     });
-
-    // 🔥 Render Settings Popup on TOP of everything
-    this.settingsPopup.render(ctx);
   }
 }

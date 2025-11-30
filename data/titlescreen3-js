@@ -1,6 +1,5 @@
 import { Scene } from "./scene.js";
 import { Background } from "./background.js";
-import SettingsPopup from "./components/settings_popup.js"; // 🔥 IMPORT
 
 export class TitleScreen {
   constructor(core) {
@@ -10,50 +9,39 @@ export class TitleScreen {
     this.baseWidth = 1920;
     this.baseHeight = 1080;
 
-    // 🔥 Initialize Settings Popup
-    this.settingsPopup = new SettingsPopup(core);
-
     // --- Image Caching ---
     this.imageCache = {};
     this.failedImages = new Set();
 
+    // Default flag on first boot
     if (this.core.hasSave === undefined) {
       this.core.hasSave = false;
     }
 
+    // Check saves BEFORE building UI
     this.checkLocalSaves();
 
+    // Bind handlers
     this.clickHandler = (e) => this.handleClick(e);
     this.mouseMoveHandler = (e) => this.handleMouseMove(e);
 
     this.core.canvas.addEventListener("click", this.clickHandler);
     this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
 
+    // Initial Layout calculation
     this.updateLayout();
   }
 
-  // ... (Clean up listeners)
-  unload() {
-    if (this.clickHandler) {
-      this.core.canvas.removeEventListener("click", this.clickHandler);
-      this.clickHandler = null;
-    }
-    if (this.mouseMoveHandler) {
-      this.core.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
-      this.mouseMoveHandler = null;
-    }
-    // Dispose settings popup listeners too
-    if (this.settingsPopup) {
-      this.settingsPopup.dispose();
-    }
-  }
+  /* ----------------------------------------------------------
+     ---------- HELPERS (Image & Styling) ----------
+     ---------------------------------------------------------- */
 
-  // ... (Existing helpers: _loadImage, hexToRgba, resolveRadius, resolvePosition, drawStyledBox, drawFlexibleImage kept same) ...
   _loadImage(src) {
     if (!src) return null;
     if (this.failedImages.has(src)) return null;
     const existing = this.imageCache[src];
     if (existing) return existing;
+
     const img = new Image();
     img.onerror = () => {
       this.failedImages.add(src);
@@ -69,10 +57,12 @@ export class TitleScreen {
     this.imageCache[src] = img;
     return img;
   }
+
   hexToRgba(color, alpha = 1) {
-    /* ... same as before ... */ if (!color) return `rgba(0,0,0,${alpha})`;
+    if (!color) return `rgba(0,0,0,${alpha})`;
     if (color.startsWith("rgba")) return color;
     if (color.startsWith("rgb")) return color;
+
     if (color[0] === "#") {
       let r, g, b;
       if (color.length === 4) {
@@ -88,6 +78,7 @@ export class TitleScreen {
     }
     return color;
   }
+
   resolveRadius(rawRadius, scale) {
     if (Array.isArray(rawRadius) && rawRadius.length === 4) {
       return rawRadius.map((r) => r * scale);
@@ -96,43 +87,59 @@ export class TitleScreen {
       typeof rawRadius === "number" && rawRadius >= 0 ? rawRadius * scale : 0;
     return [scaled, scaled, scaled, scaled];
   }
+
+  // --- 🔥 NEW: Position Resolver Helper ---
+  // Calculates Top-Left X/Y based on keywords (top, bottom, center, left, right) + offset
   resolvePosition(posString, elWidth, elHeight, scaleY) {
     const canvas = this.core.canvas;
+
+    // Default: Center Screen
     let x = (canvas.width - elWidth) / 2;
     let y = (canvas.height - elHeight) / 2;
+
     if (!posString) return { x, y };
+
     const parts = posString
       .split(" ")
       .map((s) => s.trim())
       .filter(Boolean);
     const keyword = (parts[0] || "center").toLowerCase();
     const offset = (parseFloat(parts[1]) || 0) * scaleY;
+
     switch (keyword) {
       case "top":
         y = offset;
         break;
       case "bottom":
-        y = canvas.height - elHeight - offset;
+        y = canvas.height - elHeight - offset; // Offset acts as margin from bottom
         break;
       case "left":
         x = offset;
         break;
       case "right":
-        x = canvas.width - elWidth - offset;
+        x = canvas.width - elWidth - offset; // Offset acts as margin from right
         break;
       case "center":
       default:
+        // Center vertically + offset
         y = (canvas.height - elHeight) / 2 + offset;
         break;
     }
+
+    // Note: If user wants specific "Top Left", currently this logic prioritizes one axis.
+    // But typically "center 50" implies vertical adjustment.
+
     return { x, y };
   }
+
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
     const resolved = Array.isArray(radii)
       ? radii
       : [radii, radii, radii, radii];
     const [tl, tr, br, bl] = resolved;
     const hasRadius = tl > 0 || tr > 0 || br > 0 || bl > 0;
+
+    // Draw Background/Fill
     ctx.fillStyle = bgColor;
     ctx.beginPath();
     if (hasRadius) {
@@ -142,6 +149,8 @@ export class TitleScreen {
       ctx.rect(x, y, w, h);
     }
     ctx.fill();
+
+    // Draw Border
     if (thickness > 0) {
       ctx.lineWidth = thickness;
       ctx.strokeStyle = borderColor;
@@ -152,6 +161,7 @@ export class TitleScreen {
       const bw = w + thickness - overlap * 2;
       const bh = h + thickness - overlap * 2;
       const outerRadii = resolved.map((r) => (r > 0 ? r + offset : 0));
+
       ctx.beginPath();
       if (hasRadius) {
         if (ctx.roundRect) ctx.roundRect(bx, by, bw, bh, outerRadii);
@@ -162,10 +172,12 @@ export class TitleScreen {
       ctx.stroke();
     }
   }
+
   drawFlexibleImage(ctx, source, x, y, w, h) {
     if (!source) return false;
     let srcPath = null;
     let spriteCoords = null;
+
     if (Array.isArray(source) && source.length >= 1) {
       srcPath = source[0];
       if (source.length >= 5) {
@@ -179,9 +191,12 @@ export class TitleScreen {
     } else if (typeof source === "string") {
       srcPath = source;
     }
+
     if (!srcPath || this.failedImages.has(srcPath)) return false;
+
     const img = this._loadImage(srcPath);
     if (!img || !img.complete || img.naturalWidth === 0) return false;
+
     if (spriteCoords) {
       ctx.drawImage(
         img,
@@ -200,7 +215,10 @@ export class TitleScreen {
     return true;
   }
 
-  // ... (checkLocalSaves, getLatestSave kept same) ...
+  /* ----------------------------------------------------------
+     ---------- LOGIC (Saves, Resize, Layout) ----------
+     ---------------------------------------------------------- */
+
   checkLocalSaves() {
     this.core.hasSave = false;
     for (let i = 0; i < 10; i++) {
@@ -213,6 +231,7 @@ export class TitleScreen {
       }
     }
   }
+
   getLatestSave() {
     let latest = null;
     for (let i = 0; i < 10; i++) {
@@ -227,45 +246,68 @@ export class TitleScreen {
     return latest;
   }
 
+  unload() {
+    if (this.clickHandler) {
+      this.core.canvas.removeEventListener("click", this.clickHandler);
+      this.clickHandler = null;
+    }
+    if (this.mouseMoveHandler) {
+      this.core.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
+      this.mouseMoveHandler = null;
+    }
+  }
+
   onResize() {
     this.updateLayout();
   }
 
+  // --- 🔥 UPDATED: Dynamic Button Group Layout ---
   updateLayout() {
     const canvas = this.core.canvas;
     const guiData = this.core.dataCache?.gameGUI?.gui_titlescreen;
     const scaleX = canvas.width / this.baseWidth;
     const scaleY = canvas.height / this.baseHeight;
 
+    // Button Config
     const btnW = (guiData?.gui_titlescreen_ButtonWidth || 300) * scaleX;
     const btnH = (guiData?.gui_titlescreen_ButtonHeight || 60) * scaleY;
     const spacing = (guiData?.gui_titlescreen_ButtonSpacing || 15) * scaleY;
 
+    // Define Button List
     const list = [];
     if (this.core.hasSave) list.push({ text: "Continue", id: "continue" });
     list.push({ text: "New Game", id: "newgame" });
     list.push({ text: "Load Game", id: "loadgame" });
     list.push({ text: "Settings", id: "settings" });
 
+    // Calculate Total Group Height
     const totalGroupHeight = list.length * btnH + (list.length - 1) * spacing;
+
+    // Get Position Config (Default: center with 50px offset)
     const posString =
       guiData?.gui_titlescreen_ButtonGroupPosition || "center 50";
+
+    // Resolve Starting Position for the Group
+    // We treat the entire group as one box to find the starting Y
     const groupPos = this.resolvePosition(
       posString,
       btnW,
       totalGroupHeight,
       scaleY
     );
-    const startX = groupPos.x + btnW / 2;
-    const startY = groupPos.y;
+
+    // If 'center', x is already centered. If 'left'/'right', x is adjusted.
+    const startX = groupPos.x + btnW / 2; // Convert Top-Left to Center-X for button objects
+    const startY = groupPos.y; // Top-Y of the group
 
     this.buttons = [];
+
     list.forEach((item, index) => {
       const yPos = startY + index * (btnH + spacing);
       this.buttons.push({
         ...item,
-        x: startX,
-        y: yPos,
+        x: startX, // Center X
+        y: yPos, // Top Y
         width: btnW,
         height: btnH,
       });
@@ -274,8 +316,6 @@ export class TitleScreen {
 
   handleMouseMove(e) {
     if (this.core.saveLoadPopup?.visible) return;
-    // 🔥 Block input if Settings is open
-    if (this.settingsPopup.visible) return;
 
     const rect = this.core.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
@@ -285,11 +325,13 @@ export class TitleScreen {
 
     this.buttons.forEach((btn, index) => {
       const halfW = btn.width / 2;
+      const btnCenterY = btn.y + btn.height / 2;
+
       if (
         mx > btn.x - halfW &&
         mx < btn.x + halfW &&
-        my > btn.y &&
-        my < btn.y + btn.height
+        my > btn.y && // Top Y
+        my < btn.y + btn.height // Bottom Y
       ) {
         this.hoveredButtonIndex = index;
       }
@@ -298,8 +340,6 @@ export class TitleScreen {
 
   handleClick(e) {
     if (this.core.saveLoadPopup?.visible) return;
-    // 🔥 Block click if Settings is open
-    if (this.settingsPopup.visible) return;
 
     const rect = this.core.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
@@ -307,6 +347,7 @@ export class TitleScreen {
 
     this.buttons.forEach((btn) => {
       const halfW = btn.width / 2;
+
       if (
         mx > btn.x - halfW &&
         mx < btn.x + halfW &&
@@ -316,22 +357,21 @@ export class TitleScreen {
         if (btn.id === "continue") this.continueGame();
         if (btn.id === "newgame") this.startNewGame();
         if (btn.id === "loadgame") this.core.saveLoadPopup.open("load");
-
-        // 🔥 Open Settings
-        if (btn.id === "settings") {
-          this.settingsPopup.open();
-        }
+        if (btn.id === "settings") console.log("Settings clicked");
       }
     });
   }
 
-  // ... (startNewGame, continueGame, resumeFromGameState kept same) ...
+  // ------------------------------
+  // GAME START LOGIC
+  // ------------------------------
   async startNewGame() {
     this.core.hasSave = false;
     this.unload();
     this.core.resetGameState();
     const gs = this.core.gameState;
     let started = false;
+
     if (gs.currentBackground?.active && gs.currentBackground.target) {
       const bg = new Background(this.core, gs.currentBackground.target);
       await bg.load();
@@ -347,6 +387,7 @@ export class TitleScreen {
     }
     if (!started) console.warn("⚠ No default starting scene/bg found!");
   }
+
   async continueGame() {
     const latest = this.getLatestSave();
     if (this.core.hasRuntimeDataCache) {
@@ -369,6 +410,7 @@ export class TitleScreen {
       return this.resumeFromGameState(this.core.gameState);
     }
   }
+
   async resumeFromGameState(gs) {
     if (gs.currentBackground?.active) {
       const bg = new Background(this.core, gs.currentBackground.target);
@@ -385,7 +427,12 @@ export class TitleScreen {
       return;
     }
   }
+
   update() {}
+
+  /* ----------------------------------------------------------
+     ---------- RENDER ----------
+     ---------------------------------------------------------- */
 
   render(ctx) {
     const canvas = this.core.canvas;
@@ -396,6 +443,7 @@ export class TitleScreen {
     // --- 1. Background ---
     const bgColor = guiData?.gui_titlescreen_BackgroundColor || "#1a1a1a";
     const bgImgSource = guiData?.gui_titlescreen_BackgroundImg || null;
+
     const bgDrawn = this.drawFlexibleImage(
       ctx,
       bgImgSource,
@@ -409,18 +457,23 @@ export class TitleScreen {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // --- 2. Title ---
+    // --- 2. Title / Logo ---
     const titleW = (guiData?.gui_titlescreen_TitleWidth || 300) * scaleX;
     const titleH = (guiData?.gui_titlescreen_TitleHeight || 60) * scaleY;
     const titlePosString =
-      guiData?.gui_titlescreen_TitlePosition || "center 300";
+      guiData?.gui_titlescreen_TitlePosition || "center 300"; // default fallback
+
+    // Resolve Title Position
     const titlePos = this.resolvePosition(
       titlePosString,
       titleW,
       titleH,
       scaleY
     );
+
     const titleImgSource = guiData?.gui_titlescreen_TitleImg || null;
+
+    // Try Drawing Title Image
     let titleDrawn = this.drawFlexibleImage(
       ctx,
       titleImgSource,
@@ -430,18 +483,23 @@ export class TitleScreen {
       titleH
     );
 
+    // Fallback: Draw Text if Image failed
     if (!titleDrawn) {
       const titleFontSize =
         (guiData?.gui_titlescreen_TitleFontSize || 60) * scaleX;
       const titleFontColor = guiData?.gui_titlescreen_TitleFontColor || "#fff";
       const fontFamily =
         guiData?.gui_titlescreen_FontFamily || "Arial, sans-serif";
+
       ctx.fillStyle = titleFontColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.font = `bold ${titleFontSize}px ${fontFamily}`;
+
+      // Center text within the calculated box
       const textX = titlePos.x + titleW / 2;
       const textY = titlePos.y + titleH / 2;
+
       ctx.fillText(this.core.gameTitle || "My Visual Novel", textX, textY);
     }
 
@@ -470,8 +528,8 @@ export class TitleScreen {
     ctx.font = `bold ${btnFontSize}px ${fontFamily}`;
 
     this.buttons.forEach((btn, idx) => {
-      const isHover =
-        idx === this.hoveredButtonIndex && !this.settingsPopup.visible; // No hover if settings open
+      const isHover = idx === this.hoveredButtonIndex;
+      // Draw Box (btn.x is Center, btn.y is Top)
       const drawX = btn.x - btn.width / 2;
       const drawY = btn.y;
 
@@ -540,16 +598,19 @@ export class TitleScreen {
       ctx.fillText(btn.text, btn.x, btn.y + btn.height / 2);
     });
 
-    // --- 4. Info ---
+    // --- 4. Small Info (Version/Date) ---
     const smallFontSize =
       (guiData?.gui_titlescreen_SmallFontSize || 14) * scaleX;
     const smallFontColor = guiData?.gui_titlescreen_SmallFontColor || "#686868";
+
     ctx.font = `${smallFontSize}px ${fontFamily}`;
     ctx.fillStyle = smallFontColor;
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";
+
     const margin = 20 * scaleX;
     let infoY = canvas.height - margin;
+
     if (this.core.version) {
       ctx.fillText(`v${this.core.version}`, canvas.width - margin, infoY);
       infoY -= smallFontSize * 1.5;
@@ -563,8 +624,5 @@ export class TitleScreen {
         infoY
       );
     }
-
-    // 🔥 Render Settings Popup on TOP
-    this.settingsPopup.render(ctx);
   }
 }
