@@ -276,5 +276,23 @@
     "header_FontColor": "#fff",
     "header_FontSize": 20,
     "header_FontFamily": "Arial, sans-serif"
+  },
+  "gui_background_button": {
+    "gui_background_button_Height": 40,
+    "gui_background_button_PaddingX": 0,
+    "gui_background_button_FontSize": 20,
+    "gui_background_button_FontFamily": "Arial, sans-serif",
+    "gui_background_button_FontColor": "#ffffff",
+    "gui_background_button_FontColor_Hover": "#ffd700",
+
+    "gui_background_button_BackgroundColor": "rgba(54, 54, 54, 0.8)",
+    "gui_background_button_BackgroundColor_Hover": "rgba(80, 80, 80, 1)",
+
+    "gui_background_button_BorderThickness": 2,
+    "gui_background_button_BorderColor": "#ffffff",
+    "gui_background_button_BorderCorner": [30, 10, 10, 10],
+
+    "gui_background_button_BackgroundImg": [],
+    "gui_background_button_BackgroundImg_Hover": []
   }
 }
