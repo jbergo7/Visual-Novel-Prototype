@@ -5,11 +5,17 @@ export default class SettingsPopup {
     this.baseWidth = 1920;
     this.baseHeight = 1080;
 
-    // 🔥 REMOVED: Local 'this.settings' state.
-    // We will now access 'this.core.settings' directly everywhere.
+    // Default Settings State (kung wala sa core)
+    this.settings = this.core.settings || {
+      masterVolume: 100,
+      musicVolume: 80,
+      sfxVolume: 100,
+      textSpeed: 50,
+      fullscreen: false,
+    };
 
     // UI Elements State
-    this.draggingSlider = null; // 'masterVolume', 'musicVolume', 'sfxVolume', 'textSpeed'
+    this.draggingSlider = null; // 'master', 'music', 'sfx', 'text'
     this.hoverClose = false;
 
     // Bind handlers
@@ -18,7 +24,7 @@ export default class SettingsPopup {
     this._upHandler = () => this.onMouseUp();
 
     this.core.canvas.addEventListener("mousemove", this._moveHandler);
-    this.core.canvas.addEventListener("mousedown", this._clickHandler);
+    this.core.canvas.addEventListener("mousedown", this._clickHandler); // Changed to mousedown for dragging
     window.addEventListener("mouseup", this._upHandler);
   }
 
@@ -162,11 +168,7 @@ export default class SettingsPopup {
         const sliderX = item.x + item.labelW;
         let pct = (mx - sliderX) / item.w;
         pct = Math.max(0, Math.min(1, pct));
-
-        // 🔥 UPDATE CORE SETTINGS DIRECTLY
-        if (this.core.settings) {
-          this.core.settings[this.draggingSlider] = Math.round(pct * 100);
-        }
+        this.settings[this.draggingSlider] = Math.round(pct * 100);
       }
     }
   }
@@ -198,11 +200,7 @@ export default class SettingsPopup {
         // Update immediately on click
         let pct = (mx - sliderX) / item.w;
         pct = Math.max(0, Math.min(1, pct));
-
-        // 🔥 UPDATE CORE SETTINGS DIRECTLY
-        if (this.core.settings) {
-          this.core.settings[item.id] = Math.round(pct * 100);
-        }
+        this.settings[item.id] = Math.round(pct * 100);
       }
     });
 
@@ -210,15 +208,12 @@ export default class SettingsPopup {
     const t = L.toggle;
     const toggleX = t.x + t.labelW;
     if (mx >= toggleX && mx <= toggleX + t.w && my >= t.y && my <= t.y + t.h) {
-      // 🔥 UPDATE CORE SETTINGS DIRECTLY
-      if (this.core.settings) {
-        this.core.settings.fullscreen = !this.core.settings.fullscreen;
-        if (this.core.settings.fullscreen) {
-          if (document.documentElement.requestFullscreen)
-            document.documentElement.requestFullscreen();
-        } else {
-          if (document.exitFullscreen) document.exitFullscreen();
-        }
+      this.settings.fullscreen = !this.settings.fullscreen;
+      if (this.settings.fullscreen) {
+        if (document.documentElement.requestFullscreen)
+          document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen();
       }
     }
   }
@@ -309,9 +304,7 @@ export default class SettingsPopup {
       );
 
       // Fill (Active part)
-      // 🔥 READ FROM CORE SETTINGS
-      const val = this.core.settings ? this.core.settings[item.id] : 50;
-
+      const val = this.settings[item.id]; // 0 to 100
       const fillW = (val / 100) * item.w;
       this.drawStyledBox(
         ctx,
@@ -349,10 +342,7 @@ export default class SettingsPopup {
     ctx.fillText(t.label, t.x, t.y + t.h / 2);
 
     const toggleX = t.x + t.labelW;
-
-    // 🔥 READ FROM CORE SETTINGS
-    const isOn = this.core.settings ? this.core.settings.fullscreen : false;
-
+    const isOn = this.settings.fullscreen;
     const toggleBg = isOn ? "#4cd137" : "#7f8c8d";
 
     // Toggle Track

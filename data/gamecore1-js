@@ -15,15 +15,11 @@ export class GameCore {
     this.characters = [];
     this.currentCharacter = null;
 
-    // 🔥 NEW: Runtime Settings (Dito mapupunta ang active settings)
-    this.settings = null;
-
     this.dataCache = {
       gameGUI: null,
       backgrounds: null,
       scenes: null,
-      gameSettings: null, // Game Data (Version, Title, Starting Scene)
-      userSettings: null, // 🔥 NEW: User Preferences (Volume, Speed)
+      gameSettings: null,
       characterSprites: null,
       characters: null,
     };
@@ -45,20 +41,6 @@ export class GameCore {
     await this.preloadData();
     await this.loadCharacters();
 
-    // 🔥 Initialize Runtime Settings (Clone from cache to allow modification)
-    if (this.dataCache.userSettings) {
-      this.settings = { ...this.dataCache.userSettings };
-    } else {
-      // Fallback defaults
-      this.settings = {
-        masterVolume: 100,
-        musicVolume: 80,
-        sfxVolume: 100,
-        textSpeed: 50,
-        fullscreen: false,
-      };
-    }
-
     // 🔥 ALWAYS use fresh new game state (from gameSettings)
     this.resetGameState();
 
@@ -67,7 +49,6 @@ export class GameCore {
     this.date_updated = this.dataCache.gameSettings.date_updated;
 
     console.log("Game Version:", this.version);
-    console.log("Active Settings:", this.settings); // Debug check
     console.log("Initial runtime gameState:", this.gameState);
 
     await this.loadScene("TitleScreen");
@@ -78,28 +59,19 @@ export class GameCore {
 
   async preloadData() {
     try {
-      // 🔥 Added fetch for data-settings.json
-      const [
-        gameGUI,
-        bgRes,
-        sceneRes,
-        settingsRes,
-        userSettingsRes, // 👈 New variable
-        characterSprites,
-      ] = await Promise.all([
-        fetch("./data/data-game-gui.json").then((r) => r.json()),
-        fetch("./data/data-backgrounds.json").then((r) => r.json()),
-        fetch("./data/data-scenes.json").then((r) => r.json()),
-        fetch("./data/data-gamesettings.json").then((r) => r.json()),
-        fetch("./data/data-settings.json").then((r) => r.json()), // 👈 Fetching User Settings
-        fetch("./data/data-character-sprites.json").then((r) => r.json()),
-      ]);
+      const [gameGUI, bgRes, sceneRes, settingsRes, characterSprites] =
+        await Promise.all([
+          fetch("./data/data-game-gui.json").then((r) => r.json()),
+          fetch("./data/data-backgrounds.json").then((r) => r.json()),
+          fetch("./data/data-scenes.json").then((r) => r.json()),
+          fetch("./data/data-gamesettings.json").then((r) => r.json()),
+          fetch("./data/data-character-sprites.json").then((r) => r.json()),
+        ]);
 
       this.dataCache.gameGUI = gameGUI;
       this.dataCache.backgrounds = bgRes;
       this.dataCache.scenes = sceneRes;
       this.dataCache.gameSettings = settingsRes;
-      this.dataCache.userSettings = userSettingsRes; // 👈 Storing to cache
       this.dataCache.characterSprites = characterSprites;
 
       console.log("Game data preloaded:", this.dataCache);
