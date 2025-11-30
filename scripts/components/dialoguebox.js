@@ -8,7 +8,8 @@ export class DialogueBox {
     this.displayText = "";
     this.charIndex = 0;
     this.accumulator = 0;
-    this.speed = 20;
+
+    // Note: this.speed is no longer used directly, we rely on core.settings
     this.isTyping = false;
     this.typingFinishedTime = null;
 
@@ -44,8 +45,8 @@ export class DialogueBox {
   }
 
   /* -------------------------
-       ---------- IMAGES ----------
-       ------------------------- */
+        ---------- IMAGES ----------
+        ------------------------- */
 
   _loadImage(src) {
     if (!src) return null;
@@ -139,8 +140,8 @@ export class DialogueBox {
   }
 
   /* -------------------------
-       ---------- TYPEWRITER ----------
-       ------------------------- */
+        ---------- TYPEWRITER ----------
+        ------------------------- */
 
   startTyping(newText) {
     this.fullText = newText ?? "";
@@ -167,14 +168,35 @@ export class DialogueBox {
     return true;
   }
 
+  // 🔥 UPDATED: Integrate textSpeed from core.settings
   updateTyping(deltaMs) {
     if (!this.isTyping) return;
     if (this.fastForwardMode) {
       this.skipTypewriter();
       return;
     }
+
     this.accumulator += deltaMs;
-    const interval = this.speed;
+
+    // 1. Get Speed from Settings (Default to 50 if missing)
+    const settingSpeed = this.core.settings?.textSpeed ?? 50;
+
+    // 2. Convert Slider (0-100) to Delay (ms)
+    // Higher Setting = Lower Delay (Faster)
+    // 100 Speed -> 0ms Delay
+    // 0 Speed   -> 100ms Delay
+    const interval = Math.max(0, 100 - settingSpeed);
+
+    // 3. Handle Instant Text (Max Speed)
+    if (interval === 0) {
+      this.displayText = this.fullText;
+      this.charIndex = this.fullText.length;
+      this.isTyping = false;
+      this.typingFinishedTime = Date.now();
+      return;
+    }
+
+    // 4. Normal Typewriter Loop
     while (this.accumulator >= interval && this.isTyping) {
       this.accumulator -= interval;
       if (this.charIndex < this.fullText.length) {
@@ -189,8 +211,8 @@ export class DialogueBox {
   }
 
   /* -------------------------
-       ---------- INPUT ----------
-       ------------------------- */
+        ---------- INPUT ----------
+        ------------------------- */
 
   handleMouseMove(e) {
     const rect = this.core.canvas.getBoundingClientRect();
@@ -245,8 +267,8 @@ export class DialogueBox {
   }
 
   /* -------------------------
-       ---------- HELPERS ----------
-       ------------------------- */
+        ---------- HELPERS ----------
+        ------------------------- */
 
   hexToRgba(hex, alpha = 1) {
     if (!hex || hex[0] !== "#" || (hex.length !== 7 && hex.length !== 4)) {
@@ -409,7 +431,7 @@ export class DialogueBox {
           c_img,
           c_sx,
           c_sy,
-          sourceW,
+          c_sw,
           c_sh,
           Math.round(currentX),
           l_dy,
@@ -446,8 +468,8 @@ export class DialogueBox {
   }
 
   /* -------------------------
-       ---------- MAIN RENDER ----------
-       ------------------------- */
+        ---------- MAIN RENDER ----------
+        ------------------------- */
 
   render(ctx, speaker, text) {
     if (this.fullText !== text) this.startTyping(text);
