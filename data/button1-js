@@ -12,105 +12,42 @@ export class Button {
     // 1. Get GUI Settings
     const gui = this.core.dataCache?.gameGUI?.gui_background_button || {};
 
-    // 2. Resolve BASE Dimensions (Reference: 1920x1080)
+    // 2. Resolve Dimensions
     // Height comes from GUI config
-    this.baseHeight = gui.gui_background_button_Height || 60;
+    this.height = gui.gui_background_button_Height || 60;
 
-    // Width is calculated based on Text + Padding using Base Font Size
-    const baseFontSize = gui.gui_background_button_FontSize || 28;
+    // Width is calculated based on Text + Padding
+    const fontSize = gui.gui_background_button_FontSize || 28;
     const paddingX = gui.gui_background_button_PaddingX || 40;
     const fontFamily = gui.gui_background_button_FontFamily || "Arial";
 
-    // Measure text to get dynamic BASE width
+    // Measure text to get dynamic width
     const ctx = this.core.canvas.getContext("2d");
-    ctx.save();
-    ctx.font = `bold ${baseFontSize}px ${fontFamily}`;
+    ctx.font = `bold ${fontSize}px ${fontFamily}`;
     const textMetrics = ctx.measureText(this.text);
-    this.baseWidth = textMetrics.width + paddingX * 2;
-    ctx.restore();
+    this.width = textMetrics.width + paddingX * 2;
 
-    // 3. BASE Position (From data-backgrounds.json)
-    this.baseX = data.x || 0;
-    this.baseY = data.y || 0;
+    // 3. Position (From data-backgrounds.json, NOT GUI)
+    this.x = data.x || 0;
+    this.y = data.y || 0;
 
-    // 4. Initialize Screen State (Actual drawn values)
-    this.x = this.baseX;
-    this.y = this.baseY;
-    this.width = this.baseWidth;
-    this.height = this.baseHeight;
-    this.fontSize = baseFontSize;
-    this.scale = 1;
-
-    // 5. Interaction State
+    // 4. Interaction State
     this.clickHandler = null;
     this.active = false;
     this.isHovered = false;
-
-    // Apply Initial Scale
-    this.resize(this.core.scaleRatio || 1);
 
     this.enableHoverTracking();
   }
 
   /* ----------------------------------------------------------
-      ---------- LOGIC (RESIZE & INTERACTION) ----------
-      ---------------------------------------------------------- */
+     ---------- HELPERS (Styling) ----------
+     ---------------------------------------------------------- */
 
-  // 🔥 IMPORTANT: Updates position and size based on window size
-  resize(scale) {
-    this.scale = scale;
-
-    // Scale Coordinates and Dimensions
-    this.x = this.baseX * scale;
-    this.y = this.baseY * scale;
-    this.width = this.baseWidth * scale;
-    this.height = this.baseHeight * scale;
-
-    // Scale Font
-    const gui = this.core.dataCache?.gameGUI?.gui_background_button || {};
-    const baseFontSize = gui.gui_background_button_FontSize || 28;
-    this.fontSize = baseFontSize * scale;
-  }
-
-  enableHoverTracking() {
-    this.mouseMoveHandler = (e) => {
-      // Skip if covered by other popups
-      if (this.core.saveLoadPopup?.visible || this.core.menuPopup?.visible) {
-        this.isHovered = false;
-        return;
-      }
-
-      const rect = this.core.canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-
-      // Check against current SCALED dimensions
-      this.isHovered = this.isInside(mx, my);
-    };
-
-    this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
-  }
-
-  isInside(mx, my) {
-    // Hit detection using Scaled X, Y, Width, Height
-    return (
-      mx > this.x &&
-      mx < this.x + this.width &&
-      my > this.y &&
-      my < this.y + this.height
-    );
-  }
-
-  /* ----------------------------------------------------------
-      ---------- HELPERS (Styling) ----------
-      ---------------------------------------------------------- */
-
-  resolveRadius(rawRadius, scale = 1) {
+  resolveRadius(rawRadius) {
     if (Array.isArray(rawRadius) && rawRadius.length === 4) {
-      return rawRadius.map((r) => r * scale);
+      return rawRadius;
     }
-    const val =
-      typeof rawRadius === "number" && rawRadius >= 0 ? rawRadius * scale : 0;
+    const val = typeof rawRadius === "number" && rawRadius >= 0 ? rawRadius : 0;
     return [val, val, val, val];
   }
 
@@ -136,6 +73,8 @@ export class Button {
     if (thickness > 0) {
       ctx.lineWidth = thickness;
       ctx.strokeStyle = borderColor;
+      const offset = thickness / 2;
+      // Simplified offset for buttons to avoid complexity
       ctx.stroke();
     }
   }
@@ -199,12 +138,56 @@ export class Button {
   }
 
   /* ----------------------------------------------------------
-      ---------- RENDER ----------
-      ---------------------------------------------------------- */
+     ---------- LOGIC ----------
+     ---------------------------------------------------------- */
+
+  resize(scale) {
+    // Buttons in background.js usually scale with the scene/canvas
+    // This method is called if you want to rescale positions manually
+    // But usually, standard rendering handles scale via ctx transformation if used.
+    // For now, we update internal hitbox values if needed.
+    // Assuming simple scaling:
+    const gui = this.core.dataCache?.gameGUI?.gui_background_button || {};
+    const baseH = gui.gui_background_button_Height || 60;
+    // Note: Re-calculating width on resize might be needed if font scales differently
+  }
+
+  enableHoverTracking() {
+    this.mouseMoveHandler = (e) => {
+      // Skip if covered by other popups
+      if (this.core.saveLoadPopup?.visible || this.core.menuPopup?.visible) {
+        this.isHovered = false;
+        return;
+      }
+
+      const rect = this.core.canvas.getBoundingClientRect();
+      // Need to account for potential scaling in GameCore if applied globally
+      // For now, assuming raw canvas coordinates match button coordinates
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const prevState = this.isHovered;
+      this.isHovered = this.isInside(mx, my);
+    };
+
+    this.core.canvas.addEventListener("mousemove", this.mouseMoveHandler);
+  }
+
+  isInside(mx, my) {
+    return (
+      mx > this.x &&
+      mx < this.x + this.width &&
+      my > this.y &&
+      my < this.y + this.height
+    );
+  }
+
+  /* ----------------------------------------------------------
+     ---------- RENDER ----------
+     ---------------------------------------------------------- */
 
   render(ctx) {
     const gui = this.core.dataCache?.gameGUI?.gui_background_button || {};
-    const scale = this.scale || 1;
 
     // Config Extraction
     const bgColor = this.isHovered
@@ -212,30 +195,28 @@ export class Button {
       : gui.gui_background_button_BackgroundColor || "rgba(54,54,54,0.8)";
 
     const borderColor = gui.gui_background_button_BorderColor || "#ffffff";
-    // Scale the border thickness
-    const borderThick =
-      (gui.gui_background_button_BorderThickness || 0) * scale;
-    // Scale the corners
+    const borderThick = gui.gui_background_button_BorderThickness || 0;
     const borderCorner = this.resolveRadius(
-      gui.gui_background_button_BorderCorner || 5,
-      scale
+      gui.gui_background_button_BorderCorner || 5
     );
 
     const fontColor = this.isHovered
       ? gui.gui_background_button_FontColor_Hover || "#ffd700"
       : gui.gui_background_button_FontColor || "#ffffff";
 
+    const fontSize = gui.gui_background_button_FontSize || 28;
     const fontFamily = gui.gui_background_button_FontFamily || "Arial";
 
     const imgSrc = this.isHovered
       ? gui.gui_background_button_BackgroundImg_Hover
       : gui.gui_background_button_BackgroundImg;
 
-    // 1. Draw Background (Image or Styled Box) using Scaled Props (this.x, this.width, etc.)
+    // 1. Draw Background (Image or Styled Box)
     let imgDrawn = false;
 
     // If image exists in JSON, try drawing it
     if (imgSrc && (typeof imgSrc === "string" || imgSrc.length > 0)) {
+      // Optional: Clip for rounded corners if using image
       ctx.save();
       this.drawStyledBox(
         ctx,
@@ -288,9 +269,9 @@ export class Button {
       );
     }
 
-    // 2. Draw Text (Using Scaled Font Size)
+    // 2. Draw Text
     ctx.fillStyle = fontColor;
-    ctx.font = `bold ${this.fontSize}px ${fontFamily}`;
+    ctx.font = `${fontSize}px ${fontFamily}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(this.text, this.x + this.width / 2, this.y + this.height / 2);
