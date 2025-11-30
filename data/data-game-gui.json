@@ -195,5 +195,34 @@
     "header_FontColor": "#fff",
     "header_FontSize": 20,
     "header_FontFamily": "Arial, sans-serif"
+  },
+  "gui_titlescreen": {
+    "gui_titlescreen_TitleFontSize": 70,
+    "gui_titlescreen_ButtonFontSize": 20,
+    "gui_titlescreen_SmallFontSize": 14,
+    "gui_titlescreen_TitleFontColor": "#000000",
+    "gui_titlescreen_ButtonFontColor": "#000000",
+    "gui_titlescreen_SmallFontColor": "#000000",
+    "gui_titlescreen_FontFamily": "Arial, sans-serif",
+
+    "gui_titlescreen_BackgroundColor": "#fef1e1",
+
+    "gui_titlescreen_ButtonGroupPosition": "center 50",
+    "gui_titlescreen_ButtonWidth": 300,
+    "gui_titlescreen_ButtonHeight": 60,
+    "gui_titlescreen_ButtonSpacing": 15,
+    "gui_titlescreen_ButtonBorderThickness": 2,
+    "gui_titlescreen_ButtonBorderCorner": [10, 10, 10, 10],
+    "gui_titlescreen_ButtonBorderColor": "#43321e",
+    "gui_titlescreen_ButtonBackgroundColor": "#ffcc95",
+    "gui_titlescreen_ButtonBackgroundColor_Hover": "#e0b383",
+
+    "gui_titlescreen_TitleImg": [],
+    "gui_titlescreen_TitlePosition": "",
+    "gui_titlescreen_TitleWidth": 300,
+    "gui_titlescreen_TitleHeight": 60,
+    "gui_titlescreen_BackgroundImg": [],
+    "ggui_titlescreen_ButtonBackgroundImg": [],
+    "gui_titlescreen_ButtonBackgroundImg_Hover": []
   }
 }
