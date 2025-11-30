@@ -6,9 +6,6 @@ export default class SaveLoadPopup {
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
 
-    // Pagination Hover State
-    this.pageHover = { prev: false, next: false };
-
     // Base Resolution Reference
     this.baseWidth = 1920;
     this.baseHeight = 1080;
@@ -27,7 +24,10 @@ export default class SaveLoadPopup {
 
     this.totalSlots = 30;
 
-    // Fixed 10 slots per page (2 rows x 5 cols)
+    // Layout constants
+    // We will calculate slotsPerPage dynamically or keep fixed?
+    // Let's keep your logic of 10 per page for simplicity,
+    // but the layout will be flexible.
     const SLOTS_ROWS = 2;
     const SLOTS_COLS = 5;
 
@@ -57,7 +57,7 @@ export default class SaveLoadPopup {
   }
 
   /* ----------------------------------------------------------
-     ---------- HELPERS (Styling & Positioning) ----------
+     ---------- HELPERS (Styling) ----------
      ---------------------------------------------------------- */
 
   hexToRgba(color, alpha = 1) {
@@ -88,44 +88,6 @@ export default class SaveLoadPopup {
     const scaled =
       typeof rawRadius === "number" && rawRadius >= 0 ? rawRadius * scale : 0;
     return [scaled, scaled, scaled, scaled];
-  }
-
-  // 🔥 NEW: Resolve Position relative to Parent Box (Window)
-  resolveLocalPosition(posString, parent, objW, objH, scale) {
-    // Default: Center in Parent
-    let x = parent.x + (parent.w - objW) / 2;
-    let y = parent.y + (parent.h - objH) / 2;
-
-    if (!posString) return { x, y };
-
-    const parts = posString
-      .split(" ")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const keyword = (parts[0] || "center").toLowerCase();
-    const offset = (parseFloat(parts[1]) || 0) * scale;
-
-    switch (keyword) {
-      case "top":
-        y = parent.y + offset;
-        break;
-      case "bottom":
-        y = parent.y + parent.h - objH - offset; // Offset is margin from bottom
-        break;
-      case "left":
-        x = parent.x + offset;
-        break;
-      case "right":
-        x = parent.x + parent.w - objW - offset; // Offset is margin from right
-        break;
-      case "center":
-      default:
-        // Center vertically + offset
-        y += offset;
-        break;
-    }
-
-    return { x, y };
   }
 
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
@@ -173,13 +135,14 @@ export default class SaveLoadPopup {
      ---------- LAYOUT CALCULATION ----------
      ---------------------------------------------------------- */
 
+  // 🔥 Centralized layout logic to ensure hit-detection matches rendering
   getLayout() {
     const canvas = this.core.canvas;
     const guiData = this.core.dataCache?.gameGUI?.gui_saveLoad || {};
     const scaleX = canvas.width / this.baseWidth;
     const scaleY = canvas.height / this.baseHeight;
 
-    // 1. Main Container (Window)
+    // 1. Main Container
     const baseW = guiData.gui_saveLoad_Width || 1400;
     const baseH = guiData.gui_saveLoad_Height || 800;
 
@@ -187,7 +150,6 @@ export default class SaveLoadPopup {
     const winH = baseH * scaleY;
     const winX = (canvas.width - winW) / 2;
     const winY = (canvas.height - winH) / 2;
-    const winRect = { x: winX, y: winY, w: winW, h: winH };
 
     const padding = (guiData.gui_saveLoad_Padding || 40) * scaleX;
 
@@ -195,12 +157,15 @@ export default class SaveLoadPopup {
     const titleFontSize = (guiData.gui_saveLoad_TitleFontSize || 40) * scaleX;
     const titleY = winY + padding;
 
-    // 3. Close Button
+    // 3. Close Button (Top Right of Window)
     const closeSize = 40 * scaleX;
     const closeX = winX + winW - padding - closeSize;
     const closeY = winY + padding / 2;
 
     // 4. Grid Slots
+    // We fit slots inside the window minus padding and title
+    // Or use fixed slot sizes from JSON if preferred.
+    // Let's use JSON slot sizes but center them.
     const slotBaseW = guiData.gui_saveLoad_SlotWidth || 280;
     const slotBaseH = guiData.gui_saveLoad_SlotHeight || 200;
     const slotBaseSpacing = guiData.gui_saveLoad_SlotSpacing || 20;
@@ -215,51 +180,36 @@ export default class SaveLoadPopup {
     const gridW = cols * slotW + (cols - 1) * spacing;
     const gridH = rows * slotH + (rows - 1) * spacing;
 
-    // 🔥 Position Grid using flexible logic relative to Window
-    const posString = guiData.gui_saveLoad_SlotPosition || "center 50";
-    const gridPos = this.resolveLocalPosition(
-      posString,
-      winRect,
-      gridW,
-      gridH,
-      scaleY
-    );
+    // Center grid in the remaining space below title
+    const contentStartY = titleY + titleFontSize + padding;
+    const gridX = winX + (winW - gridW) / 2;
+    const gridY =
+      contentStartY + (winH - (contentStartY - winY) - gridH - padding) / 2; // vertically center in remaining space
 
-    const gridX = gridPos.x;
-    const gridY = gridPos.y;
-
-    // 5. Pagination Buttons
-    const pageBtnBaseW = guiData.gui_saveLoad_PageButtonWidth || 120;
-    const pageBtnBaseH = guiData.gui_saveLoad_PageButtonHeight || 45;
-    const pageMargin = guiData.gui_saveLoad_PageButtonMargin || 80;
-
-    const pageBtnW = pageBtnBaseW * scaleX;
-    const pageBtnH = pageBtnBaseH * scaleY;
-
+    // 5. Pagination (Bottom of Window)
+    const pageBtnW = 100 * scaleX;
+    const pageBtnH = 40 * scaleY;
     const pageY = winY + winH - padding - pageBtnH;
-    const centerX = winX + winW / 2;
-
-    const prevX = centerX - pageMargin * scaleX - pageBtnW;
-    const nextX = centerX + pageMargin * scaleX;
+    const pageCenterX = winX + winW / 2;
 
     return {
       scaleX,
       scaleY,
-      win: winRect,
+      win: { x: winX, y: winY, w: winW, h: winH },
       close: { x: closeX, y: closeY, size: closeSize },
       grid: { x: gridX, y: gridY, slotW, slotH, spacing, cols, rows },
-      page: { y: pageY, btnW: pageBtnW, btnH: pageBtnH, prevX, nextX, centerX },
+      page: { y: pageY, btnW: pageBtnW, btnH: pageBtnH, centerX: pageCenterX },
       title: {
         x: winX + padding,
         y: titleY + titleFontSize / 2,
         size: titleFontSize,
       },
-      guiData,
+      guiData, // pass raw data for colors
     };
   }
 
   /* ----------------------------------------------------------
-     ---------- LOGIC METHODS (Unchanged) ----------
+     ---------- LOGIC METHODS (Preserved) ----------
      ---------------------------------------------------------- */
 
   open(mode = "save") {
@@ -361,7 +311,7 @@ export default class SaveLoadPopup {
     const slotKey = "vn_save_slot_" + index;
     const screenshotBase64 = this.prePopupScreenshot;
     const timestamp = new Date().toLocaleString();
-    const chapter = "Chapter 1 - Episode 1";
+    const chapter = "Chapter 1 - Episode 1"; // Ideally dynamic
 
     const saveData = {
       timestamp,
@@ -448,6 +398,7 @@ export default class SaveLoadPopup {
     return lines;
   }
 
+  // Modal Layout (internal use for modal only)
   getModalLayout(ctx, canvas) {
     const modalW = canvas.width * 0.4;
     const padding = modalW * 0.1;
@@ -494,14 +445,6 @@ export default class SaveLoadPopup {
      ---------- INPUT HANDLING ----------
      ---------------------------------------------------------- */
 
-  isActionButtonDisabled(label, slot) {
-    if (label === "Save" && this.mode === "load") return true;
-    if (label === "Load" && this.mode === "save") return true;
-    if (label === "Load" && !slot.data) return true;
-    if (label === "Delete" && !slot.data) return true;
-    return false;
-  }
-
   onMouseMove(e) {
     if (!this.visible) return;
     const rect = this.core.canvas.getBoundingClientRect();
@@ -510,8 +453,8 @@ export default class SaveLoadPopup {
 
     this.hoverButton = { slot: -1, type: null };
     this.closeHover = false;
-    this.pageHover = { prev: false, next: false };
 
+    // 1. Modal Logic
     if (this.modal.visible) {
       this.modal.hoverYes = false;
       this.modal.hoverNo = false;
@@ -536,8 +479,10 @@ export default class SaveLoadPopup {
       return;
     }
 
+    // 🔥 Get Centralized Layout
     const L = this.getLayout();
 
+    // 2. Close Button
     if (
       x >= L.close.x &&
       x <= L.close.x + L.close.size &&
@@ -548,30 +493,14 @@ export default class SaveLoadPopup {
       return;
     }
 
-    if (
-      x >= L.page.prevX &&
-      x <= L.page.prevX + L.page.btnW &&
-      y >= L.page.y &&
-      y <= L.page.y + L.page.btnH
-    ) {
-      this.pageHover.prev = true;
-    }
-
-    if (
-      x >= L.page.nextX &&
-      x <= L.page.nextX + L.page.btnW &&
-      y >= L.page.y &&
-      y <= L.page.y + L.page.btnH
-    ) {
-      this.pageHover.next = true;
-    }
-
+    // 3. Slot Buttons
     this.slots.forEach((slot, i) => {
       const col = i % L.grid.cols;
       const row = Math.floor(i / L.grid.cols);
       const bx = L.grid.x + col * (L.grid.slotW + L.grid.spacing);
       const by = L.grid.y + row * (L.grid.slotH + L.grid.spacing);
 
+      // Button Dimensions relative to Slot
       const btnH = L.grid.slotH * 0.15;
       const btnBottomPadding = 10 * L.scaleY;
       const btnY = by + L.grid.slotH - btnH - btnBottomPadding;
@@ -584,9 +513,13 @@ export default class SaveLoadPopup {
       const btnW = totalBtnWidth / btnCount;
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
-        if (this.isActionButtonDisabled(label, slot)) return;
-
         const btnX = bx + slotPadding + idx * (btnW + btnSpacing);
+
+        // Visibility Logic
+        if (label === "Save" && this.mode === "load") return;
+        if (label === "Load" && this.mode === "save") return;
+        if (label === "Delete" && !slot.data) return;
+        if (label === "Load" && !slot.data) return;
 
         if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
           this.hoverButton = { slot: i, type: label };
@@ -604,6 +537,7 @@ export default class SaveLoadPopup {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // 1. Modal Interaction
     if (this.modal.visible) {
       if (this.modal.hoverYes && this.modal.onConfirm) {
         this.modal.onConfirm();
@@ -619,11 +553,17 @@ export default class SaveLoadPopup {
       return;
     }
 
+    // 🔥 Get Centralized Layout
     const L = this.getLayout();
 
+    // 2. Pagination Click
+    const prevX = L.page.centerX - L.page.btnW - 20; // 20 gap
+    const nextX = L.page.centerX + 20;
+
+    // Prev
     if (
-      x >= L.page.prevX &&
-      x <= L.page.prevX + L.page.btnW &&
+      x >= prevX &&
+      x <= prevX + L.page.btnW &&
       y >= L.page.y &&
       y <= L.page.y + L.page.btnH
     ) {
@@ -633,10 +573,10 @@ export default class SaveLoadPopup {
       }
       return;
     }
-
+    // Next
     if (
-      x >= L.page.nextX &&
-      x <= L.page.nextX + L.page.btnW &&
+      x >= nextX &&
+      x <= nextX + L.page.btnW &&
       y >= L.page.y &&
       y <= L.page.y + L.page.btnH
     ) {
@@ -647,6 +587,7 @@ export default class SaveLoadPopup {
       return;
     }
 
+    // 3. Slot Actions
     const { slot, type } = this.hoverButton;
     if (slot !== -1 && type) {
       const realIndex = this.slots[slot].id;
@@ -674,51 +615,34 @@ export default class SaveLoadPopup {
      ---------- RENDER ----------
      ---------------------------------------------------------- */
 
-  drawButton(ctx, x, y, w, h, label, isHover, isDisabled, guiData, scale) {
+  drawButton(ctx, x, y, w, h, label, isHover, slot, scale) {
+    // Style config logic can be expanded here
+    const isDisabled = (label === "Delete" || label === "Load") && !slot.data;
+
     ctx.save();
 
-    const bgNormal =
-      guiData.gui_saveLoad_ActionButtonBackgroundColor || "#ffcc95";
-    const bgHover =
-      guiData.gui_saveLoad_ActionButtonBackgroundColor_Hover || "#e0b383";
-    const bgDisabled =
-      guiData.gui_saveLoad_ActionButtonBackgroundColor_Disabled ||
-      "rgba(0,0,0,0.1)";
+    // Simple Button Style (Brown/Gold Theme)
+    const bgColor = isHover ? "#e0b383" : "#ffcc95";
+    const borderColor = "#43321e";
+    const fontColor = isDisabled ? "rgba(67, 50, 30, 0.5)" : "#43321e";
+    const fill = isDisabled ? "rgba(255, 204, 149, 0.3)" : bgColor;
 
-    const borderCol = guiData.gui_saveLoad_ActionButtonBorderColor || "#43321e";
-    const borderThick =
-      (guiData.gui_saveLoad_ActionButtonBorderThickness || 2) * scale;
-    const borderRad = this.resolveRadius(
-      guiData.gui_saveLoad_ActionButtonBorderCorner || 5,
-      scale
-    );
-
-    const fontCol = guiData.gui_saveLoad_ActionButtonFontColor || "#43321e";
-    const fontColDisabled =
-      guiData.gui_saveLoad_ActionButtonFontColor_Disabled ||
-      "rgba(67, 50, 30, 0.3)";
-    const fontSize = (guiData.gui_saveLoad_ActionButtonFontSize || 14) * scale;
-
-    let fill = bgNormal;
-    if (isDisabled) fill = bgDisabled;
-    else if (isHover) fill = bgHover;
-
-    const textFill = isDisabled ? fontColDisabled : fontCol;
-
+    // Use styled box
     this.drawStyledBox(
       ctx,
       x,
       y,
       w,
       h,
-      borderThick,
-      borderRad,
+      2,
+      5 * scale,
       fill,
-      borderCol
+      isDisabled ? "transparent" : borderColor
     );
 
-    ctx.fillStyle = textFill;
-    ctx.font = `bold ${fontSize}px Arial`;
+    // Text
+    ctx.fillStyle = fontColor;
+    ctx.font = `bold ${h * 0.5}px Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(label, x + w / 2, y + h / 2);
@@ -726,6 +650,7 @@ export default class SaveLoadPopup {
     ctx.restore();
   }
 
+  // Draw Modal Overlay (Confirmation)
   drawModal(ctx, canvas) {
     const layout = this.getModalLayout(ctx, canvas);
     const {
@@ -743,9 +668,11 @@ export default class SaveLoadPopup {
       padding,
     } = layout;
 
+    // Dim background
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // Modal Box using StyledBox
     this.drawStyledBox(
       ctx,
       modalX,
@@ -758,6 +685,7 @@ export default class SaveLoadPopup {
       "#ffcc95"
     );
 
+    // Text
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.fillStyle = "#43321e";
@@ -765,6 +693,7 @@ export default class SaveLoadPopup {
     ctx.font = `bold ${fontSize}px Arial`;
 
     let textCursorY = modalY + padding;
+
     textLines.forEach((line) => {
       ctx.fillText(line, modalX + modalW / 2, textCursorY);
       textCursorY += lineHeight;
@@ -779,6 +708,8 @@ export default class SaveLoadPopup {
       });
     }
 
+    // Buttons
+    // Yes
     const yesColor = this.modal.hoverYes ? "#35a440" : "#2e8c37";
     this.drawStyledBox(
       ctx,
@@ -796,6 +727,7 @@ export default class SaveLoadPopup {
     ctx.font = `bold ${btnH * 0.5}px Arial`;
     ctx.fillText("YES", btnX.yes + btnW / 2, btnY + btnH / 2);
 
+    // No
     const noColor = this.modal.hoverNo ? "#e05737" : "#c0482e";
     this.drawStyledBox(
       ctx,
@@ -815,6 +747,8 @@ export default class SaveLoadPopup {
   render(ctx) {
     if (!this.visible) return;
     const canvas = this.core.canvas;
+
+    // Use Shared Layout Calculation
     const L = this.getLayout();
     const guiData = L.guiData;
 
@@ -822,7 +756,7 @@ export default class SaveLoadPopup {
     ctx.fillStyle = "rgba(0,0,0,0.8)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // 2. Main Window
+    // 2. Main Window Box
     const winBg = this.hexToRgba(
       guiData.gui_saveLoad_BackgroundColor || "#fef1e1",
       guiData.gui_saveLoad_Opacity || 0.98
@@ -859,6 +793,7 @@ export default class SaveLoadPopup {
     // 4. Close Button
     const closeColor = guiData.gui_saveLoad_CloseButtonColor || "#c83232";
     const closeTxtColor = guiData.gui_saveLoad_CloseButtonTextColor || "#fff";
+    // Draw close as a small box
     this.drawStyledBox(
       ctx,
       L.close.x,
@@ -881,6 +816,7 @@ export default class SaveLoadPopup {
     );
 
     // 5. Grid Slots
+    // Slot styles
     const slotBg = guiData.gui_saveLoad_SlotBackgroundColor || "#ffffff";
     const slotBorder = guiData.gui_saveLoad_SlotBorderColor || "#dcb43c";
     const slotThick =
@@ -898,6 +834,7 @@ export default class SaveLoadPopup {
       const bx = L.grid.x + col * (L.grid.slotW + L.grid.spacing);
       const by = L.grid.y + row * (L.grid.slotH + L.grid.spacing);
 
+      // Draw Slot Card
       this.drawStyledBox(
         ctx,
         bx,
@@ -910,6 +847,7 @@ export default class SaveLoadPopup {
         slotBorder
       );
 
+      // Slot Header
       const headerH = L.grid.slotH * 0.12;
       ctx.fillStyle = slotFontColor;
       ctx.font = `bold ${slotFontSize}px Arial`;
@@ -917,11 +855,13 @@ export default class SaveLoadPopup {
       ctx.textBaseline = "top";
       ctx.fillText(slot.header, bx + L.grid.slotW / 2, by + 10 * L.scaleY);
 
+      // Thumbnail Area
       const thumbH = L.grid.slotH * 0.45;
       const thumbY = by + headerH + 8 * L.scaleY;
       const thumbMargin = 15 * L.scaleX;
       const thumbW = L.grid.slotW - thumbMargin * 2;
 
+      // Draw Thumb Placeholder or Image
       if (slot.screenshot instanceof Image) {
         ctx.drawImage(
           slot.screenshot,
@@ -930,6 +870,7 @@ export default class SaveLoadPopup {
           thumbW,
           thumbH
         );
+        // Optional border for thumb
         ctx.strokeStyle = "#ccc";
         ctx.lineWidth = 1;
         ctx.strokeRect(bx + thumbMargin, thumbY, thumbW, thumbH);
@@ -943,17 +884,23 @@ export default class SaveLoadPopup {
         ctx.fillText("Empty", bx + L.grid.slotW / 2, thumbY + thumbH / 2);
       }
 
+      // Slot Info (Date/Chapter)
       if (slot.data) {
         ctx.fillStyle = "#666";
         ctx.font = `${slotFontSize * 0.8}px Arial`;
+        // Draw below thumb
         const infoY = thumbY + thumbH + 5 * L.scaleY;
         ctx.textBaseline = "top";
         ctx.fillText(slot.date, bx + L.grid.slotW / 2, infoY);
+        // ctx.fillText(slot.chapter, bx + L.grid.slotW/2, infoY + 12 * L.scaleY);
+        // (Can add chapter text if space permits)
       }
 
+      // Action Buttons inside Slot
       const btnH = L.grid.slotH * 0.15;
       const btnBottomPadding = 10 * L.scaleY;
       const btnY = by + L.grid.slotH - btnH - btnBottomPadding;
+
       const btnCount = 3;
       const btnSpacing = 5 * L.scaleX;
       const slotPadding = 10 * L.scaleX;
@@ -963,14 +910,14 @@ export default class SaveLoadPopup {
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + slotPadding + idx * (btnW + btnSpacing);
+        const isHover =
+          this.hoverButton.slot === i && this.hoverButton.type === label;
 
-        const isDisabled = this.isActionButtonDisabled(label, slot);
-
-        let isHover = false;
-        if (!isDisabled) {
-          isHover =
-            this.hoverButton.slot === i && this.hoverButton.type === label;
-        }
+        // Skip drawing incompatible buttons
+        if (label === "Save" && this.mode === "load") return;
+        if (label === "Load" && this.mode === "save") return;
+        if (label === "Delete" && !slot.data) return;
+        if (label === "Load" && !slot.data) return;
 
         this.drawButton(
           ctx,
@@ -980,88 +927,58 @@ export default class SaveLoadPopup {
           btnH,
           label,
           isHover,
-          isDisabled,
-          guiData,
+          slot,
           L.scaleX
         );
       });
     });
 
-    // 6. Pagination
-    const pageBg = guiData.gui_saveLoad_PageButtonBackgroundColor || "#ffcc95";
-    const pageBgHover =
-      guiData.gui_saveLoad_PageButtonBackgroundColor_Hover || "#e0b383";
-    const pageBgDisabled =
-      guiData.gui_saveLoad_PageButtonBackgroundColor_Disabled || "#ccc";
-    const pageBorder = guiData.gui_saveLoad_PageButtonBorderColor || "#43321e";
-    const pageThick =
-      (guiData.gui_saveLoad_PageButtonBorderThickness || 2) * L.scaleX;
-    const pageRadii = this.resolveRadius(
-      guiData.gui_saveLoad_PageButtonBorderCorner || 10,
-      L.scaleX
-    );
-    const pageFontColor = guiData.gui_saveLoad_PageFontColor || "#43321e";
-    const pageFontSize = (guiData.gui_saveLoad_PageFontSize || 20) * L.scaleX;
+    // 6. Pagination (Centered Bottom)
+    const prevX = L.page.centerX - L.page.btnW - 20 * L.scaleX;
+    const nextX = L.page.centerX + 20 * L.scaleX;
 
-    ctx.font = `bold ${pageFontSize}px Arial`;
-
-    const prevBg =
-      this.currentPage > 1
-        ? this.pageHover.prev
-          ? pageBgHover
-          : pageBg
-        : pageBgDisabled;
+    // Prev Button
     this.drawStyledBox(
       ctx,
-      L.page.prevX,
+      prevX,
       L.page.y,
       L.page.btnW,
       L.page.btnH,
-      pageThick,
-      pageRadii,
-      prevBg,
-      pageBorder
+      2,
+      5 * L.scaleX,
+      this.currentPage > 1 ? "#ffcc95" : "#ccc",
+      "#43321e"
     );
-    ctx.fillStyle = this.currentPage > 1 ? pageFontColor : "#888";
+    ctx.fillStyle = this.currentPage > 1 ? "#43321e" : "#888";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(
-      "Prev",
-      L.page.prevX + L.page.btnW / 2,
-      L.page.y + L.page.btnH / 2
-    );
+    ctx.font = `bold ${L.page.btnH * 0.5}px Arial`;
+    ctx.fillText("Prev", prevX + L.page.btnW / 2, L.page.y + L.page.btnH / 2);
 
-    const nextBg =
-      this.currentPage < this.totalPages
-        ? this.pageHover.next
-          ? pageBgHover
-          : pageBg
-        : pageBgDisabled;
+    // Next Button
     this.drawStyledBox(
       ctx,
-      L.page.nextX,
+      nextX,
       L.page.y,
       L.page.btnW,
       L.page.btnH,
-      pageThick,
-      pageRadii,
-      nextBg,
-      pageBorder
+      2,
+      5 * L.scaleX,
+      this.currentPage < this.totalPages ? "#ffcc95" : "#ccc",
+      "#43321e"
     );
-    ctx.fillStyle = this.currentPage < this.totalPages ? pageFontColor : "#888";
-    ctx.fillText(
-      "Next",
-      L.page.nextX + L.page.btnW / 2,
-      L.page.y + L.page.btnH / 2
-    );
+    ctx.fillStyle = this.currentPage < this.totalPages ? "#43321e" : "#888";
+    ctx.fillText("Next", nextX + L.page.btnW / 2, L.page.y + L.page.btnH / 2);
 
-    ctx.fillStyle = pageFontColor;
+    // Page Indicator
+    ctx.fillStyle = guiData.gui_saveLoad_TitleFontColor || "#43321e";
     ctx.fillText(
       `Page ${this.currentPage} / ${this.totalPages}`,
       L.page.centerX,
       L.page.y + L.page.btnH / 2
     );
 
+    // 7. Modal
     if (this.modal.visible) {
       this.drawModal(ctx, canvas);
     }

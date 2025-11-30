@@ -44,7 +44,6 @@ export class TitleScreen {
 
     const img = new Image();
     img.onerror = () => {
-      //console.warn("Failed to load image:", src);
       this.failedImages.add(src);
       delete this.imageCache[src];
     };
@@ -89,7 +88,50 @@ export class TitleScreen {
     return [scaled, scaled, scaled, scaled];
   }
 
-  // Generic box drawer for borders and fills
+  // --- 🔥 NEW: Position Resolver Helper ---
+  // Calculates Top-Left X/Y based on keywords (top, bottom, center, left, right) + offset
+  resolvePosition(posString, elWidth, elHeight, scaleY) {
+    const canvas = this.core.canvas;
+
+    // Default: Center Screen
+    let x = (canvas.width - elWidth) / 2;
+    let y = (canvas.height - elHeight) / 2;
+
+    if (!posString) return { x, y };
+
+    const parts = posString
+      .split(" ")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const keyword = (parts[0] || "center").toLowerCase();
+    const offset = (parseFloat(parts[1]) || 0) * scaleY;
+
+    switch (keyword) {
+      case "top":
+        y = offset;
+        break;
+      case "bottom":
+        y = canvas.height - elHeight - offset; // Offset acts as margin from bottom
+        break;
+      case "left":
+        x = offset;
+        break;
+      case "right":
+        x = canvas.width - elWidth - offset; // Offset acts as margin from right
+        break;
+      case "center":
+      default:
+        // Center vertically + offset
+        y = (canvas.height - elHeight) / 2 + offset;
+        break;
+    }
+
+    // Note: If user wants specific "Top Left", currently this logic prioritizes one axis.
+    // But typically "center 50" implies vertical adjustment.
+
+    return { x, y };
+  }
+
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
     const resolved = Array.isArray(radii)
       ? radii
@@ -112,8 +154,6 @@ export class TitleScreen {
     if (thickness > 0) {
       ctx.lineWidth = thickness;
       ctx.strokeStyle = borderColor;
-
-      // 1px Overlap Logic
       const overlap = 1;
       const offset = thickness / 2 - overlap;
       const bx = x - offset;
@@ -133,13 +173,10 @@ export class TitleScreen {
     }
   }
 
-  // Draws image from source (string or array)
   drawFlexibleImage(ctx, source, x, y, w, h) {
     if (!source) return false;
-
-    // Determine path and spritesheet coords
     let srcPath = null;
-    let spriteCoords = null; // {sx, sy, sw, sh}
+    let spriteCoords = null;
 
     if (Array.isArray(source) && source.length >= 1) {
       srcPath = source[0];
@@ -175,7 +212,6 @@ export class TitleScreen {
     } else {
       ctx.drawImage(img, x, y, w, h);
     }
-
     return true;
   }
 
@@ -225,39 +261,53 @@ export class TitleScreen {
     this.updateLayout();
   }
 
+  // --- 🔥 UPDATED: Dynamic Button Group Layout ---
   updateLayout() {
     const canvas = this.core.canvas;
     const guiData = this.core.dataCache?.gameGUI?.gui_titlescreen;
     const scaleX = canvas.width / this.baseWidth;
     const scaleY = canvas.height / this.baseHeight;
 
-    const centerX = canvas.width / 2;
-    // Default Y start: 60% down the screen, or adjust if needed
-    const baseY = canvas.height * 0.6;
-
-    // Button Dimensions from JSON
+    // Button Config
     const btnW = (guiData?.gui_titlescreen_ButtonWidth || 300) * scaleX;
     const btnH = (guiData?.gui_titlescreen_ButtonHeight || 60) * scaleY;
     const spacing = (guiData?.gui_titlescreen_ButtonSpacing || 15) * scaleY;
 
-    this.buttons = [];
-
-    // Define Buttons
+    // Define Button List
     const list = [];
-    if (this.core.hasSave) {
-      list.push({ text: "Continue", id: "continue" });
-    }
+    if (this.core.hasSave) list.push({ text: "Continue", id: "continue" });
     list.push({ text: "New Game", id: "newgame" });
     list.push({ text: "Load Game", id: "loadgame" });
     list.push({ text: "Settings", id: "settings" });
 
-    // Position Buttons
+    // Calculate Total Group Height
+    const totalGroupHeight = list.length * btnH + (list.length - 1) * spacing;
+
+    // Get Position Config (Default: center with 50px offset)
+    const posString =
+      guiData?.gui_titlescreen_ButtonGroupPosition || "center 50";
+
+    // Resolve Starting Position for the Group
+    // We treat the entire group as one box to find the starting Y
+    const groupPos = this.resolvePosition(
+      posString,
+      btnW,
+      totalGroupHeight,
+      scaleY
+    );
+
+    // If 'center', x is already centered. If 'left'/'right', x is adjusted.
+    const startX = groupPos.x + btnW / 2; // Convert Top-Left to Center-X for button objects
+    const startY = groupPos.y; // Top-Y of the group
+
+    this.buttons = [];
+
     list.forEach((item, index) => {
-      const yPos = baseY + index * (btnH + spacing);
+      const yPos = startY + index * (btnH + spacing);
       this.buttons.push({
         ...item,
-        x: centerX, // Center X is the anchor
-        y: yPos, // Top Y is the anchor
+        x: startX, // Center X
+        y: yPos, // Top Y
         width: btnW,
         height: btnH,
       });
@@ -274,30 +324,14 @@ export class TitleScreen {
     this.hoveredButtonIndex = null;
 
     this.buttons.forEach((btn, index) => {
-      // Buttons are centered at btn.x, and btn.y is Top
-      // Wait, in updateLayout I used: x: centerX.
-      // Let's assume standardized "center-center" logic for consistency, or "center-top".
-      // Let's use Center-Center to match other components usually.
-
-      // Converting Y to be Center-Center for hit detection consistency
-      // In updateLayout: yPos was sequential. Let's assume btn.y is the Top edge.
-      // Actually, let's treat btn.x as Center and btn.y as Center for hit detection convenience
-      // RE-ADJUSTING UPDATE LAYOUT LOGIC slightly below for CENTER anchor:
-
       const halfW = btn.width / 2;
-      const halfH = btn.height / 2;
-
-      // My layout logic above put Y as top-down stack.
-      // Let's adjust hit detection to match "Center X, Top Y" or fix layout.
-      // I will fix UpdateLayout to store Center X and Center Y to be safe.
-
-      const btnCenterY = btn.y + halfH; // btn.y from loop was top-edge based on sequence
+      const btnCenterY = btn.y + btn.height / 2;
 
       if (
         mx > btn.x - halfW &&
         mx < btn.x + halfW &&
-        my > btnCenterY - halfH &&
-        my < btnCenterY + halfH
+        my > btn.y && // Top Y
+        my < btn.y + btn.height // Bottom Y
       ) {
         this.hoveredButtonIndex = index;
       }
@@ -313,14 +347,12 @@ export class TitleScreen {
 
     this.buttons.forEach((btn) => {
       const halfW = btn.width / 2;
-      const halfH = btn.height / 2;
-      const btnCenterY = btn.y + halfH;
 
       if (
         mx > btn.x - halfW &&
         mx < btn.x + halfW &&
-        my > btnCenterY - halfH &&
-        my < btnCenterY + halfH
+        my > btn.y &&
+        my < btn.y + btn.height
       ) {
         if (btn.id === "continue") this.continueGame();
         if (btn.id === "newgame") this.startNewGame();
@@ -337,7 +369,6 @@ export class TitleScreen {
     this.core.hasSave = false;
     this.unload();
     this.core.resetGameState();
-
     const gs = this.core.gameState;
     let started = false;
 
@@ -347,7 +378,6 @@ export class TitleScreen {
       this.core.setActiveScene(bg);
       started = true;
     }
-
     if (!started && gs.currentScene?.active && gs.currentScene.target) {
       const scene = new Scene(this.core, gs.currentScene.target);
       await scene.load();
@@ -355,37 +385,26 @@ export class TitleScreen {
       this.core.setActiveScene(scene);
       started = true;
     }
-
-    if (!started) {
-      console.warn(
-        "⚠ No default starting scene or background in gameSettings!"
-      );
-    }
+    if (!started) console.warn("⚠ No default starting scene/bg found!");
   }
 
   async continueGame() {
     const latest = this.getLatestSave();
-
     if (this.core.hasRuntimeDataCache) {
-      const runtimeHasProgress =
+      const hasProg =
         this.core.gameState?.currentBackground?.active ||
         this.core.gameState?.currentScene?.active;
-
-      if (runtimeHasProgress) {
+      if (hasProg) {
         this.unload();
         return this.resumeFromGameState(this.core.gameState);
       }
     } else {
-      if (!latest) {
-        console.warn("⚠ Continue pressed but no save found.");
-        return;
-      }
+      if (!latest) return;
       this.core.gameState = structuredClone(latest.gameState);
       this.core.characters = structuredClone(latest.characters);
       this.core.currentCharacter =
         this.core.characters.find((ch) => ch.default) ||
         this.core.characters[0];
-
       this.unload();
       this.core.hasRuntimeDataCache = true;
       return this.resumeFromGameState(this.core.gameState);
@@ -402,16 +421,11 @@ export class TitleScreen {
     if (gs.currentScene?.active) {
       const scene = new Scene(this.core, gs.currentScene.target);
       await scene.load();
-      const idx =
-        typeof gs.currentScene.dialogues === "number"
-          ? gs.currentScene.dialogues
-          : 0;
-      scene.currentLine = idx;
-      scene.resumeIndex = idx;
+      scene.currentLine = gs.currentScene.dialogues || 0;
+      scene.resumeIndex = scene.currentLine;
       this.core.setActiveScene(scene);
       return;
     }
-    console.warn("⚠ No scene or background to resume.");
   }
 
   update() {}
@@ -424,13 +438,12 @@ export class TitleScreen {
     const canvas = this.core.canvas;
     const guiData = this.core.dataCache?.gameGUI?.gui_titlescreen;
     const scaleX = canvas.width / this.baseWidth;
+    const scaleY = canvas.height / this.baseHeight;
 
-    // Default fallbacks
+    // --- 1. Background ---
     const bgColor = guiData?.gui_titlescreen_BackgroundColor || "#1a1a1a";
     const bgImgSource = guiData?.gui_titlescreen_BackgroundImg || null;
 
-    // 1. Draw Screen Background
-    // Attempt to draw image; if fail or none, draw color
     const bgDrawn = this.drawFlexibleImage(
       ctx,
       bgImgSource,
@@ -444,28 +457,56 @@ export class TitleScreen {
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // 2. Draw Title
-    const titleFontSize =
-      (guiData?.gui_titlescreen_TitleFontSize || 60) * scaleX;
-    const titleFontColor = guiData?.gui_titlescreen_TitleFontColor || "#fff";
-    const fontFamily =
-      guiData?.gui_titlescreen_FontFamily || "Arial, sans-serif";
+    // --- 2. Title / Logo ---
+    const titleW = (guiData?.gui_titlescreen_TitleWidth || 300) * scaleX;
+    const titleH = (guiData?.gui_titlescreen_TitleHeight || 60) * scaleY;
+    const titlePosString =
+      guiData?.gui_titlescreen_TitlePosition || "center 300"; // default fallback
 
-    ctx.fillStyle = titleFontColor;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `bold ${titleFontSize}px ${fontFamily}`;
-    ctx.fillText(
-      this.core.gameTitle || "My Visual Novel",
-      canvas.width / 2,
-      canvas.height * 0.3
+    // Resolve Title Position
+    const titlePos = this.resolvePosition(
+      titlePosString,
+      titleW,
+      titleH,
+      scaleY
     );
 
-    // 3. Draw Buttons
+    const titleImgSource = guiData?.gui_titlescreen_TitleImg || null;
+
+    // Try Drawing Title Image
+    let titleDrawn = this.drawFlexibleImage(
+      ctx,
+      titleImgSource,
+      titlePos.x,
+      titlePos.y,
+      titleW,
+      titleH
+    );
+
+    // Fallback: Draw Text if Image failed
+    if (!titleDrawn) {
+      const titleFontSize =
+        (guiData?.gui_titlescreen_TitleFontSize || 60) * scaleX;
+      const titleFontColor = guiData?.gui_titlescreen_TitleFontColor || "#fff";
+      const fontFamily =
+        guiData?.gui_titlescreen_FontFamily || "Arial, sans-serif";
+
+      ctx.fillStyle = titleFontColor;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = `bold ${titleFontSize}px ${fontFamily}`;
+
+      // Center text within the calculated box
+      const textX = titlePos.x + titleW / 2;
+      const textY = titlePos.y + titleH / 2;
+
+      ctx.fillText(this.core.gameTitle || "My Visual Novel", textX, textY);
+    }
+
+    // --- 3. Buttons ---
     const btnFontSize =
       (guiData?.gui_titlescreen_ButtonFontSize || 20) * scaleX;
     const btnFontColor = guiData?.gui_titlescreen_ButtonFontColor || "#fff";
-
     const btnBorderColor =
       guiData?.gui_titlescreen_ButtonBorderColor || "#43321e";
     const btnBorderThickness =
@@ -474,29 +515,24 @@ export class TitleScreen {
       guiData?.gui_titlescreen_ButtonBorderCorner || 0,
       scaleX
     );
-
-    // Background Colors
     const btnBgColor =
       guiData?.gui_titlescreen_ButtonBackgroundColor || "#ffcc95";
     const btnBgHover =
       guiData?.gui_titlescreen_ButtonBackgroundColor_Hover || "#e0b383";
-
-    // Background Images
     const btnImgSource = guiData?.gui_titlescreen_ButtonBackgroundImg || null;
     const btnImgHoverSource =
       guiData?.gui_titlescreen_ButtonBackgroundImg_Hover || null;
+    const fontFamily =
+      guiData?.gui_titlescreen_FontFamily || "Arial, sans-serif";
 
     ctx.font = `bold ${btnFontSize}px ${fontFamily}`;
 
     this.buttons.forEach((btn, idx) => {
       const isHover = idx === this.hoveredButtonIndex;
-
-      // Calculate drawing coordinates (Top-Left for drawing)
-      // Note: btn.x is Center X, btn.y is Top Y based on updateLayout logic
+      // Draw Box (btn.x is Center, btn.y is Top)
       const drawX = btn.x - btn.width / 2;
       const drawY = btn.y;
 
-      // 3A. Draw Border (Underneath layer)
       if (btnBorderThickness > 0) {
         this.drawStyledBox(
           ctx,
@@ -511,22 +547,14 @@ export class TitleScreen {
         );
       }
 
-      // 3B. Draw Background (Image or Color)
       const currentImgSource = isHover
         ? btnImgHoverSource || btnImgSource
         : btnImgSource;
       const currentColor = isHover ? btnBgHover : btnBgColor;
 
-      // Try drawing image inside the button box
-      // Note: flexible image drawing generally draws rectangle.
-      // If we need rounded corners on the image itself, we need clipping.
-      // For simplicity here, we draw image on top. If complex masking needed, use ctx.clip().
-
       let imgDrawn = false;
       if (currentImgSource) {
-        // Optional: simple clipping for rounded corners on images
         ctx.save();
-        // Create path for clipping
         this.drawStyledBox(
           ctx,
           drawX,
@@ -550,7 +578,6 @@ export class TitleScreen {
         ctx.restore();
       }
 
-      // If no image, draw solid color fill
       if (!imgDrawn) {
         this.drawStyledBox(
           ctx,
@@ -565,14 +592,13 @@ export class TitleScreen {
         );
       }
 
-      // 3C. Draw Text
       ctx.fillStyle = btnFontColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(btn.text, btn.x, btn.y + btn.height / 2);
     });
 
-    // 4. Draw Version / Date (Small Text)
+    // --- 4. Small Info (Version/Date) ---
     const smallFontSize =
       (guiData?.gui_titlescreen_SmallFontSize || 14) * scaleX;
     const smallFontColor = guiData?.gui_titlescreen_SmallFontColor || "#686868";
@@ -589,7 +615,6 @@ export class TitleScreen {
       ctx.fillText(`v${this.core.version}`, canvas.width - margin, infoY);
       infoY -= smallFontSize * 1.5;
     }
-
     if (this.core.date_updated) {
       const d = new Date(this.core.date_updated);
       const opt = { month: "short", day: "numeric", year: "numeric" };

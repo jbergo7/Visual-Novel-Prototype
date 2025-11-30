@@ -218,11 +218,63 @@
     "gui_titlescreen_ButtonBackgroundColor_Hover": "#e0b383",
 
     "gui_titlescreen_TitleImg": [],
-    "gui_titlescreen_TitlePosition": "",
+    "gui_titlescreen_TitlePosition": "top 300",
     "gui_titlescreen_TitleWidth": 300,
     "gui_titlescreen_TitleHeight": 60,
     "gui_titlescreen_BackgroundImg": [],
     "ggui_titlescreen_ButtonBackgroundImg": [],
     "gui_titlescreen_ButtonBackgroundImg_Hover": []
+  },
+  "gui_saveLoad": {
+    "gui_saveLoad_Width": 1600,
+    "gui_saveLoad_Height": 800,
+    "gui_saveLoad_Padding": 40,
+    "gui_saveLoad_Opacity": 0.98,
+    "gui_saveLoad_BackgroundColor": "#fef1e1",
+    "gui_saveLoad_BorderThickness": 10,
+    "gui_saveLoad_BorderColor": "#ffcc95",
+    "gui_saveLoad_BorderCorner": [20, 20, 20, 20],
+
+    "gui_saveLoad_TitleFontSize": 40,
+    "gui_saveLoad_TitleFontColor": "#43321e",
+
+    "gui_saveLoad_SlotPosition": "center -20",
+    "gui_saveLoad_SlotWidth": 300,
+    "gui_saveLoad_SlotHeight": 230,
+    "gui_saveLoad_SlotSpacing": 10,
+    "gui_saveLoad_SlotBackgroundColor": "#ffffff",
+    "gui_saveLoad_SlotBorderThickness": 3,
+    "gui_saveLoad_SlotBorderColor": "#dcb43c",
+    "gui_saveLoad_SlotBorderCorner": [10, 10, 10, 10],
+
+    "gui_saveLoad_SlotFontColor": "#43321e",
+    "gui_saveLoad_SlotFontSize": 16,
+
+    "gui_saveLoad_CloseButtonColor": "#c83232",
+    "gui_saveLoad_CloseButtonTextColor": "#ffffff",
+
+    "gui_saveLoad_ActionButtonBorderThickness": 2,
+    "gui_saveLoad_ActionButtonBorderColor": "#43321e",
+    "gui_saveLoad_ActionButtonBorderCorner": [5, 5, 5, 5],
+
+    "gui_saveLoad_ActionButtonBackgroundColor": "#ffcc95",
+    "gui_saveLoad_ActionButtonBackgroundColor_Hover": "#e0b383",
+    "gui_saveLoad_ActionButtonBackgroundColor_Disabled": "rgba(0, 0, 0, 0.1)",
+
+    "gui_saveLoad_ActionButtonFontColor": "#43321e",
+    "gui_saveLoad_ActionButtonFontColor_Disabled": "rgba(67, 50, 30, 0.3)",
+    "gui_saveLoad_ActionButtonFontSize": 14,
+
+    "gui_saveLoad_PageButtonWidth": 120,
+    "gui_saveLoad_PageButtonHeight": 45,
+    "gui_saveLoad_PageButtonMargin": 80,
+    "gui_saveLoad_PageButtonBorderThickness": 2,
+    "gui_saveLoad_PageButtonBorderColor": "#43321e",
+    "gui_saveLoad_PageButtonBorderCorner": [10, 10, 10, 10],
+    "gui_saveLoad_PageButtonBackgroundColor": "#ffcc95",
+    "gui_saveLoad_PageButtonBackgroundColor_Hover": "#e0b383",
+    "gui_saveLoad_PageButtonBackgroundColor_Disabled": "#ccc",
+    "gui_saveLoad_PageFontColor": "#43321e",
+    "gui_saveLoad_PageFontSize": 20
   }
 }

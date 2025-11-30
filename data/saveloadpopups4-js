@@ -57,7 +57,7 @@ export default class SaveLoadPopup {
   }
 
   /* ----------------------------------------------------------
-     ---------- HELPERS (Styling & Positioning) ----------
+     ---------- HELPERS (Styling) ----------
      ---------------------------------------------------------- */
 
   hexToRgba(color, alpha = 1) {
@@ -88,44 +88,6 @@ export default class SaveLoadPopup {
     const scaled =
       typeof rawRadius === "number" && rawRadius >= 0 ? rawRadius * scale : 0;
     return [scaled, scaled, scaled, scaled];
-  }
-
-  // 🔥 NEW: Resolve Position relative to Parent Box (Window)
-  resolveLocalPosition(posString, parent, objW, objH, scale) {
-    // Default: Center in Parent
-    let x = parent.x + (parent.w - objW) / 2;
-    let y = parent.y + (parent.h - objH) / 2;
-
-    if (!posString) return { x, y };
-
-    const parts = posString
-      .split(" ")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    const keyword = (parts[0] || "center").toLowerCase();
-    const offset = (parseFloat(parts[1]) || 0) * scale;
-
-    switch (keyword) {
-      case "top":
-        y = parent.y + offset;
-        break;
-      case "bottom":
-        y = parent.y + parent.h - objH - offset; // Offset is margin from bottom
-        break;
-      case "left":
-        x = parent.x + offset;
-        break;
-      case "right":
-        x = parent.x + parent.w - objW - offset; // Offset is margin from right
-        break;
-      case "center":
-      default:
-        // Center vertically + offset
-        y += offset;
-        break;
-    }
-
-    return { x, y };
   }
 
   drawStyledBox(ctx, x, y, w, h, thickness, radii, bgColor, borderColor) {
@@ -179,7 +141,7 @@ export default class SaveLoadPopup {
     const scaleX = canvas.width / this.baseWidth;
     const scaleY = canvas.height / this.baseHeight;
 
-    // 1. Main Container (Window)
+    // 1. Main Container
     const baseW = guiData.gui_saveLoad_Width || 1400;
     const baseH = guiData.gui_saveLoad_Height || 800;
 
@@ -187,7 +149,6 @@ export default class SaveLoadPopup {
     const winH = baseH * scaleY;
     const winX = (canvas.width - winW) / 2;
     const winY = (canvas.height - winH) / 2;
-    const winRect = { x: winX, y: winY, w: winW, h: winH };
 
     const padding = (guiData.gui_saveLoad_Padding || 40) * scaleX;
 
@@ -215,18 +176,11 @@ export default class SaveLoadPopup {
     const gridW = cols * slotW + (cols - 1) * spacing;
     const gridH = rows * slotH + (rows - 1) * spacing;
 
-    // 🔥 Position Grid using flexible logic relative to Window
-    const posString = guiData.gui_saveLoad_SlotPosition || "center 50";
-    const gridPos = this.resolveLocalPosition(
-      posString,
-      winRect,
-      gridW,
-      gridH,
-      scaleY
-    );
-
-    const gridX = gridPos.x;
-    const gridY = gridPos.y;
+    // Center grid
+    const contentStartY = titleY + titleFontSize + padding;
+    const gridX = winX + (winW - gridW) / 2;
+    const gridY =
+      contentStartY + (winH - (contentStartY - winY) - gridH - padding) / 2;
 
     // 5. Pagination Buttons
     const pageBtnBaseW = guiData.gui_saveLoad_PageButtonWidth || 120;
@@ -245,7 +199,7 @@ export default class SaveLoadPopup {
     return {
       scaleX,
       scaleY,
-      win: winRect,
+      win: { x: winX, y: winY, w: winW, h: winH },
       close: { x: closeX, y: closeY, size: closeSize },
       grid: { x: gridX, y: gridY, slotW, slotH, spacing, cols, rows },
       page: { y: pageY, btnW: pageBtnW, btnH: pageBtnH, prevX, nextX, centerX },
@@ -259,7 +213,7 @@ export default class SaveLoadPopup {
   }
 
   /* ----------------------------------------------------------
-     ---------- LOGIC METHODS (Unchanged) ----------
+     ---------- LOGIC METHODS ----------
      ---------------------------------------------------------- */
 
   open(mode = "save") {
@@ -270,7 +224,6 @@ export default class SaveLoadPopup {
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        // Lower quality for performance
         this.prePopupScreenshot = this.core.canvas.toDataURL(
           "image/jpeg",
           0.07
@@ -494,6 +447,7 @@ export default class SaveLoadPopup {
      ---------- INPUT HANDLING ----------
      ---------------------------------------------------------- */
 
+  // 🔥 Helper: Check if an action button is disabled
   isActionButtonDisabled(label, slot) {
     if (label === "Save" && this.mode === "load") return true;
     if (label === "Load" && this.mode === "save") return true;
@@ -584,7 +538,8 @@ export default class SaveLoadPopup {
       const btnW = totalBtnWidth / btnCount;
 
       ["Save", "Load", "Delete"].forEach((label, idx) => {
-        if (this.isActionButtonDisabled(label, slot)) return;
+        // 🔥 DISABLE CHECK for Mouse Move
+        if (this.isActionButtonDisabled(label, slot)) return; // Skip checking hover if disabled
 
         const btnX = bx + slotPadding + idx * (btnW + btnSpacing);
 
@@ -648,6 +603,7 @@ export default class SaveLoadPopup {
     }
 
     const { slot, type } = this.hoverButton;
+    // Slot Logic handles click only if valid hover (which already excludes disabled)
     if (slot !== -1 && type) {
       const realIndex = this.slots[slot].id;
       const s = this.slots[slot];
@@ -674,9 +630,11 @@ export default class SaveLoadPopup {
      ---------- RENDER ----------
      ---------------------------------------------------------- */
 
+  // 🔥 UPDATED: Draw Button with Disable Logic from JSON
   drawButton(ctx, x, y, w, h, label, isHover, isDisabled, guiData, scale) {
     ctx.save();
 
+    // Normal / Hover / Disabled Colors from JSON
     const bgNormal =
       guiData.gui_saveLoad_ActionButtonBackgroundColor || "#ffcc95";
     const bgHover =
@@ -699,12 +657,16 @@ export default class SaveLoadPopup {
       "rgba(67, 50, 30, 0.3)";
     const fontSize = (guiData.gui_saveLoad_ActionButtonFontSize || 14) * scale;
 
+    // Resolve current style
     let fill = bgNormal;
     if (isDisabled) fill = bgDisabled;
     else if (isHover) fill = bgHover;
 
     const textFill = isDisabled ? fontColDisabled : fontCol;
 
+    // Draw Box
+    // Pass 0 border thickness if disabled (optional, depends on preference) - but request implied visible.
+    // Let's keep border for consistency but maybe dimmer? Using standard border for now.
     this.drawStyledBox(
       ctx,
       x,
@@ -717,6 +679,7 @@ export default class SaveLoadPopup {
       borderCol
     );
 
+    // Text
     ctx.fillStyle = textFill;
     ctx.font = `bold ${fontSize}px Arial`;
     ctx.textAlign = "center";
@@ -964,8 +927,10 @@ export default class SaveLoadPopup {
       ["Save", "Load", "Delete"].forEach((label, idx) => {
         const btnX = bx + slotPadding + idx * (btnW + btnSpacing);
 
+        // 🔥 Updated: Don't return/skip. Draw everything, but pass disabled state.
         const isDisabled = this.isActionButtonDisabled(label, slot);
 
+        // Only trigger hover if NOT disabled
         let isHover = false;
         if (!isDisabled) {
           isHover =
@@ -1062,6 +1027,7 @@ export default class SaveLoadPopup {
       L.page.y + L.page.btnH / 2
     );
 
+    // 7. Modal
     if (this.modal.visible) {
       this.drawModal(ctx, canvas);
     }
