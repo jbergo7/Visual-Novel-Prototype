@@ -2,6 +2,7 @@
   "home": {
     "image": "assets/bg_home.jpg",
     "autosave": true,
+    "music": "title_theme",
     "buttons": [
       {
         "id": "shop",
@@ -11,7 +12,8 @@
         "action": {
           "type": "background",
           "target": "grocery"
-        }
+        },
+        "soundeffects": "click"
       },
       {
         "id": "rest",

@@ -55,6 +55,11 @@ export class Background {
       if (!this.bgData)
         throw new Error(`Background '${this.backgroundId}' not found.`);
 
+      // 🔥 NEW: Play Background Music if defined
+      if (this.bgData.music) {
+        this.core.audioManager.playBGM(this.bgData.music);
+      }
+
       console.debug(`🎨 Loading background: ${this.backgroundId}`);
 
       // Load image
@@ -79,6 +84,14 @@ export class Background {
         btn.addClickListener(async () => {
           if (this.menuPopup.visible) return;
           if (this.isLoading) return;
+
+          // 🔥 NEW: Play Button SFX if defined
+          if (btnData.soundeffects) {
+            this.core.audioManager.playSFX(btnData.soundeffects);
+          } else {
+            // Optional: Default click sound kung walang specific sfx
+            // this.core.audioManager.playSFX("click");
+          }
 
           const action = btn.data?.action;
           if (!action) return;
