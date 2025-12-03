@@ -21,6 +21,8 @@ export class TitleScreen {
       this.core.hasSave = false;
     }
 
+    this.core.audioManager.playBGM("title_theme");
+
     this.checkLocalSaves();
 
     this.clickHandler = (e) => this.handleClick(e);
@@ -313,6 +315,8 @@ export class TitleScreen {
         my > btn.y &&
         my < btn.y + btn.height
       ) {
+        this.core.audioManager.stopBGM("title_theme");
+        this.core.audioManager.playSFX("click");
         if (btn.id === "continue") this.continueGame();
         if (btn.id === "newgame") this.startNewGame();
         if (btn.id === "loadgame") this.core.saveLoadPopup.open("load");

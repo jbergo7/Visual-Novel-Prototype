@@ -1,0 +1,6 @@
+{
+  "click": { "src": "click.wav", "start": 0.4 },
+  "hover": "hover.wav",
+  "typing": "type.wav",
+  "page_flip": "page.wav"
+}

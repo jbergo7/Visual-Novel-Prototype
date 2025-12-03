@@ -1,5 +1,6 @@
 import SaveLoadPopup from "./components/save_load_popup.js";
 import SaveLoad from "./components/save_load_method.js";
+import AudioManager from "./audio_manager.js";
 
 export class GameCore {
   constructor(canvasId) {
@@ -15,6 +16,9 @@ export class GameCore {
 
     // [PURPOSE] Helper class for saving/loading strings to LocalStorage
     this.saveloadHandler = new SaveLoad();
+
+    // 🔥 Instantiate Audio Manager
+    this.audioManager = new AudioManager(this);
 
     this.characters = [];
     this.currentCharacter = null;
@@ -33,6 +37,8 @@ export class GameCore {
       userSettings: null, // User Preferences
       characterSprites: null, // Sprite coordinates
       characters: null, // Character stats
+      music: null, // 🔥 New Cache Slot
+      soundeffects: null, // 🔥 New Cache Slot
     };
 
     // [PURPOSE] Global Click Listener
@@ -59,6 +65,7 @@ export class GameCore {
   async initialize() {
     // 1. Wait for all JSON files to load
     await this.preloadData();
+    this.audioManager.init(this.dataCache.music, this.dataCache.soundeffects);
     await this.loadCharacters();
 
     // [PURPOSE] Initialize User Settings (Volume/Speed)
@@ -109,6 +116,8 @@ export class GameCore {
         settingsRes,
         userSettingsRes,
         characterSprites,
+        musicRes,
+        sfxRes,
       ] = await Promise.all([
         // [FETCH SOURCE] GUI Styling (Colors, Borders)
         fetch("./data/data-game-gui.json").then((r) => r.json()),
@@ -127,6 +136,9 @@ export class GameCore {
 
         // [FETCH SOURCE] Sprite Sheet Coordinates
         fetch("./data/data-character-sprites.json").then((r) => r.json()),
+
+        fetch("./data/data-music.json").then((r) => r.json()),
+        fetch("./data/data-soundeffects.json").then((r) => r.json()),
       ]);
 
       // Store loaded data into Cache
@@ -136,6 +148,9 @@ export class GameCore {
       this.dataCache.gameSettings = settingsRes;
       this.dataCache.userSettings = userSettingsRes;
       this.dataCache.characterSprites = characterSprites;
+
+      this.dataCache.music = musicRes;
+      this.dataCache.soundeffects = sfxRes;
 
       console.log("Game data preloaded:", this.dataCache);
     } catch (err) {
