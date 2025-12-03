@@ -1,6 +1,6 @@
 import { Scene } from "./scene.js";
 import { Background } from "./background.js";
-import SettingsPopup from "./components/settings_popup.js"; // 🔥 IMPORT
+import SettingsPopup from "./components/settings_popup.js";
 
 export class TitleScreen {
   constructor(core) {
@@ -10,10 +10,12 @@ export class TitleScreen {
     this.baseWidth = 1920;
     this.baseHeight = 1080;
 
-    // 🔥 Initialize Settings Popup
+    // 🔥 STATE: Audio starts OFF
+    this.isAudioOn = false;
+    this.audioBtn = { x: 0, y: 0, size: 50 }; // Placeholder dimensions
+
     this.settingsPopup = new SettingsPopup(core);
 
-    // --- Image Caching ---
     this.imageCache = {};
     this.failedImages = new Set();
 
@@ -21,7 +23,8 @@ export class TitleScreen {
       this.core.hasSave = false;
     }
 
-    this.core.audioManager.playBGM("title_theme");
+    // ❌ REMOVED: this.core.audioManager.playBGM("title_theme");
+    // Hindi na ito kusa tutunog. Hihintayin natin ang click sa toggle.
 
     this.checkLocalSaves();
 
@@ -34,7 +37,6 @@ export class TitleScreen {
     this.updateLayout();
   }
 
-  // ... (Clean up listeners)
   unload() {
     if (this.clickHandler) {
       this.core.canvas.removeEventListener("click", this.clickHandler);
@@ -44,13 +46,12 @@ export class TitleScreen {
       this.core.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
       this.mouseMoveHandler = null;
     }
-    // Dispose settings popup listeners too
     if (this.settingsPopup) {
       this.settingsPopup.dispose();
     }
   }
 
-  // ... (Existing helpers: _loadImage, hexToRgba, resolveRadius, resolvePosition, drawStyledBox, drawFlexibleImage kept same) ...
+  // ... (Keep existing helpers: _loadImage, hexToRgba, resolveRadius, resolvePosition, drawStyledBox, drawFlexibleImage) ...
   _loadImage(src) {
     if (!src) return null;
     if (this.failedImages.has(src)) return null;
@@ -72,7 +73,7 @@ export class TitleScreen {
     return img;
   }
   hexToRgba(color, alpha = 1) {
-    /* ... same as before ... */ if (!color) return `rgba(0,0,0,${alpha})`;
+    if (!color) return `rgba(0,0,0,${alpha})`;
     if (color.startsWith("rgba")) return color;
     if (color.startsWith("rgb")) return color;
     if (color[0] === "#") {
@@ -239,6 +240,16 @@ export class TitleScreen {
     const scaleX = canvas.width / this.baseWidth;
     const scaleY = canvas.height / this.baseHeight;
 
+    // 🔥 Define Toggle Button Position (Upper Right)
+    const toggleSize = 60 * scaleY;
+    const toggleMargin = 30 * scaleY;
+    this.audioBtn = {
+      x: canvas.width - toggleSize - toggleMargin,
+      y: toggleMargin,
+      width: toggleSize,
+      height: toggleSize,
+    };
+
     const btnW = (guiData?.gui_titlescreen_ButtonWidth || 300) * scaleX;
     const btnH = (guiData?.gui_titlescreen_ButtonHeight || 60) * scaleY;
     const spacing = (guiData?.gui_titlescreen_ButtonSpacing || 15) * scaleY;
@@ -276,7 +287,6 @@ export class TitleScreen {
 
   handleMouseMove(e) {
     if (this.core.saveLoadPopup?.visible) return;
-    // 🔥 Block input if Settings is open
     if (this.settingsPopup.visible) return;
 
     const rect = this.core.canvas.getBoundingClientRect();
@@ -300,13 +310,32 @@ export class TitleScreen {
 
   handleClick(e) {
     if (this.core.saveLoadPopup?.visible) return;
-    // 🔥 Block click if Settings is open
     if (this.settingsPopup.visible) return;
 
     const rect = this.core.canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
+    // 🔥 CHECK AUDIO TOGGLE CLICK
+    if (
+      mx > this.audioBtn.x &&
+      mx < this.audioBtn.x + this.audioBtn.width &&
+      my > this.audioBtn.y &&
+      my < this.audioBtn.y + this.audioBtn.height
+    ) {
+      // Toggle State
+      this.isAudioOn = !this.isAudioOn;
+      this.core.audioManager.playSFX("click");
+
+      if (this.isAudioOn) {
+        this.core.audioManager.playBGM("title_theme");
+      } else {
+        this.core.audioManager.stopBGM();
+      }
+      return; // Stop checking other buttons
+    }
+
+    // Main Buttons
     this.buttons.forEach((btn) => {
       const halfW = btn.width / 2;
       if (
@@ -315,16 +344,17 @@ export class TitleScreen {
         my > btn.y &&
         my < btn.y + btn.height
       ) {
-        this.core.audioManager.stopBGM("title_theme");
         this.core.audioManager.playSFX("click");
+
+        // Stop music if leaving (only if it was playing)
+        if (this.isAudioOn && (btn.id === "continue" || btn.id === "newgame")) {
+          this.core.audioManager.stopBGM(1000);
+        }
+
         if (btn.id === "continue") this.continueGame();
         if (btn.id === "newgame") this.startNewGame();
         if (btn.id === "loadgame") this.core.saveLoadPopup.open("load");
-
-        // 🔥 Open Settings
-        if (btn.id === "settings") {
-          this.settingsPopup.open();
-        }
+        if (btn.id === "settings") this.settingsPopup.open();
       }
     });
   }
@@ -475,7 +505,7 @@ export class TitleScreen {
 
     this.buttons.forEach((btn, idx) => {
       const isHover =
-        idx === this.hoveredButtonIndex && !this.settingsPopup.visible; // No hover if settings open
+        idx === this.hoveredButtonIndex && !this.settingsPopup.visible;
       const drawX = btn.x - btn.width / 2;
       const drawY = btn.y;
 
@@ -567,6 +597,34 @@ export class TitleScreen {
         infoY
       );
     }
+
+    // --- 5. 🔥 RENDER AUDIO TOGGLE BUTTON ---
+    const btn = this.audioBtn;
+    ctx.save();
+
+    // Draw Background Circle (Semi-transparent)
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.beginPath();
+    ctx.arc(
+      btn.x + btn.width / 2,
+      btn.y + btn.height / 2,
+      btn.width / 2,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+
+    // Draw Icon (Using Text Emoji for simplicity)
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `${btn.height * 0.6}px Arial`; // Scale font to button
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // 🔊 for On, 🔇 for Off
+    const icon = this.isAudioOn ? "🔊" : "🔇";
+    ctx.fillText(icon, btn.x + btn.width / 2, btn.y + btn.height / 2 + 2); // +2 for slight visual adjustment
+
+    ctx.restore();
 
     // 🔥 Render Settings Popup on TOP
     this.settingsPopup.render(ctx);

@@ -2,72 +2,60 @@ export default class AudioManager {
   constructor(core) {
     this.core = core;
 
-    // Database of file paths (Populated from JSON)
     this.musicDB = {};
     this.sfxDB = {};
 
-    // State
-    this.currentBGM = null; // The actual Audio object for music
+    this.currentBGM = null;
     this.currentBGMId = null;
-    this.sfxCache = {}; // Cache loaded SFX so we don't reload them every click
+    this.sfxCache = {};
 
-    // Base Paths
-    // Note: Siguraduhin na match ito sa folder structure mo (e.g., "assets/audio/soundeffects/" kung binago mo)
+    // 🔥 TRACKER: Hawakan natin ang timer ng fade para mapatay natin ito
+    this.fadeInterval = null;
+
+    // Paths
     this.musicPath = "assets/audio/music/";
     this.sfxPath = "assets/audio/soundeffects/";
   }
 
-  // Called by GameCore after fetching JSONs
   init(musicData, sfxData) {
     this.musicDB = musicData || {};
     this.sfxDB = sfxData || {};
 
-    // 🔥 PRELOADER: Sinusuportahan na ang String at Object format
     console.log("Preloading SFX...");
     Object.keys(this.sfxDB).forEach((key) => {
       const entry = this.sfxDB[key];
-
-      // Check kung string ba ("click.wav") o object ({ src: "click.wav", ... })
-      let filename = "";
-      if (typeof entry === "string") {
-        filename = entry;
-      } else {
-        filename = entry.src;
-      }
+      let filename = typeof entry === "string" ? entry : entry.src;
 
       if (filename) {
         const audio = new Audio(this.sfxPath + filename);
-        audio.load(); // Force load metadata
+        audio.load();
         this.sfxCache[key] = audio;
       }
     });
-
-    console.log("AudioManager Initialized:", {
-      music: this.musicDB,
-      sfx: this.sfxDB,
-    });
+    console.log("AudioManager Ready");
   }
 
-  // --- HELPERS: Calculate Volume based on Settings ---
+  // --- VOLUME CALCULATIONS (With Curve) ---
+  // Note: Gumamit tayo ng exponent (vol * vol) para mas natural ang paghina sa tenga.
+
   getMasterVolume() {
-    return (this.core.settings?.masterVolume ?? 100) / 100;
+    const raw = (this.core.settings?.masterVolume ?? 100) / 100;
+    return raw * raw; // Curve
   }
 
   getMusicVolume() {
-    return (
-      ((this.core.settings?.musicVolume ?? 80) / 100) * this.getMasterVolume()
-    );
+    const raw = (this.core.settings?.musicVolume ?? 80) / 100;
+    return raw * raw * this.getMasterVolume();
   }
 
   getSfxVolume() {
-    return (
-      ((this.core.settings?.sfxVolume ?? 100) / 100) * this.getMasterVolume()
-    );
+    const raw = (this.core.settings?.sfxVolume ?? 100) / 100;
+    return raw * raw * this.getMasterVolume();
   }
 
   // --- MUSIC HANDLING ---
   playBGM(id, fadeDuration = 1000) {
-    if (this.currentBGMId === id) return; // Already playing this song
+    if (this.currentBGMId === id) return;
 
     const filename = this.musicDB[id];
     if (!filename) {
@@ -75,7 +63,7 @@ export default class AudioManager {
       return;
     }
 
-    // 1. Fade out old music (if any)
+    // 1. Fade out old music
     if (this.currentBGM) {
       this.fadeOutAndStop(this.currentBGM, fadeDuration);
     }
@@ -83,22 +71,37 @@ export default class AudioManager {
     // 2. Setup new music
     const audio = new Audio(this.musicPath + filename);
     audio.loop = true;
-    audio.volume = 0; // Start at 0 for fade in
+    audio.volume = 0; // Start silent
 
-    // Play (Catch error for browser autoplay policies)
+    // 🔥 UPDATE REFERENCE AGAD:
+    // Para kung galawin mo ang slider habang nagloload, alam ng system kung sino ang aayusin.
+    this.currentBGM = audio;
+    this.currentBGMId = id;
+
+    // Kill any existing fade loop from previous song
+    if (this.fadeInterval) {
+      clearInterval(this.fadeInterval);
+      this.fadeInterval = null;
+    }
+
     audio
       .play()
       .then(() => {
-        this.currentBGM = audio;
-        this.currentBGMId = id;
+        // Start Fade In
         this.fadeIn(audio, this.getMusicVolume(), fadeDuration);
       })
       .catch((e) => {
-        console.warn("[AudioManager] Autoplay blocked or file missing:", e);
+        console.warn("[AudioManager] Autoplay blocked:", e);
       });
   }
 
   stopBGM(fadeDuration = 1000) {
+    // Kill fade loop
+    if (this.fadeInterval) {
+      clearInterval(this.fadeInterval);
+      this.fadeInterval = null;
+    }
+
     if (this.currentBGM) {
       this.fadeOutAndStop(this.currentBGM, fadeDuration);
       this.currentBGM = null;
@@ -106,72 +109,86 @@ export default class AudioManager {
     }
   }
 
-  // Call this whenever Settings Slider is moved to update running BGM immediately
+  // 🔥 IMPORTANT FIX: UPDATE VOLUMES REAL-TIME
+  // Tinatawag ito ng SettingsPopup habang nag-dadrag ka.
   updateVolumes() {
+    // 1. Stop Fade Loop:
+    // "User na ang bahala, wag mo na galawin ang volume automatic."
+    if (this.fadeInterval) {
+      clearInterval(this.fadeInterval);
+      this.fadeInterval = null;
+    }
+
+    // 2. Apply Volume Instantly:
     if (this.currentBGM) {
       this.currentBGM.volume = this.getMusicVolume();
     }
+
+    // Debugging (Para makita mo sa console kung nagbabago talaga)
+    // console.log("Music Vol Updated:", this.getMusicVolume());
   }
 
-  // --- SFX HANDLING (UPDATED) ---
+  // --- SFX HANDLING ---
   playSFX(id) {
     const entry = this.sfxDB[id];
     if (!entry) return;
 
-    // 1. Determine Start Time & Filename
     let startTime = 0;
-
-    // Check kung object may 'start' property
     if (typeof entry === "object" && entry.start) {
       startTime = entry.start;
     }
 
-    // 2. Get Audio from Cache
     let audio = this.sfxCache[id];
-
     if (audio) {
-      // Clone para pwedeng mag-overlap ang tunog (rapid clicks)
       audio = audio.cloneNode();
     } else {
-      // Fallback kung sakaling wala sa cache (rare if init ran correctly)
       const filename = typeof entry === "string" ? entry : entry.src;
       audio = new Audio(this.sfxPath + filename);
       this.sfxCache[id] = audio;
     }
 
-    // 3. Apply Start Time (Skip Dead Air)
-    if (startTime > 0) {
-      audio.currentTime = startTime;
-    }
+    if (startTime > 0) audio.currentTime = startTime;
 
-    // 4. Play
     audio.volume = this.getSfxVolume();
     audio.play().catch((e) => {});
   }
 
   // --- FADE UTILS ---
   fadeIn(audio, targetVol, duration) {
-    const step = 50; // ms
+    // Clear existing interval
+    if (this.fadeInterval) clearInterval(this.fadeInterval);
+
+    const step = 50;
+    // Calculate amount to change per step
     const diff = targetVol / (duration / step);
-    const interval = setInterval(() => {
+
+    this.fadeInterval = setInterval(() => {
+      // Safety check
       if (!audio || audio.paused) {
-        clearInterval(interval);
+        clearInterval(this.fadeInterval);
+        this.fadeInterval = null;
         return;
       }
-      // Cap at target volume
+
+      // If reached target OR EXCEEDED (important!)
       if (audio.volume + diff >= targetVol) {
         audio.volume = targetVol;
-        clearInterval(interval);
+        clearInterval(this.fadeInterval);
+        this.fadeInterval = null;
       } else {
-        audio.volume += diff;
+        // Safe increment
+        const next = audio.volume + diff;
+        audio.volume = Math.min(next, 1);
       }
     }, step);
   }
 
   fadeOutAndStop(audio, duration) {
+    // Use local interval for fadeOut (since we don't control "old" music anymore)
     const startVol = audio.volume;
     const step = 50;
     const diff = startVol / (duration / step);
+
     const interval = setInterval(() => {
       if (audio.volume - diff <= 0) {
         audio.volume = 0;
@@ -179,7 +196,8 @@ export default class AudioManager {
         audio.currentTime = 0;
         clearInterval(interval);
       } else {
-        audio.volume -= diff;
+        const next = audio.volume - diff;
+        audio.volume = Math.max(0, next);
       }
     }, step);
   }

@@ -166,6 +166,12 @@ export default class SettingsPopup {
         // 🔥 UPDATE CORE SETTINGS DIRECTLY
         if (this.core.settings) {
           this.core.settings[this.draggingSlider] = Math.round(pct * 100);
+
+          // 🔥 FIXED: Notify Audio Manager
+          // Kapag Master, Music, o SFX ang ginalaw, update agad ang volume.
+          if (this.draggingSlider.includes("Volume")) {
+            this.core.audioManager.updateVolumes();
+          }
         }
       }
     }
@@ -180,6 +186,7 @@ export default class SettingsPopup {
 
     // Close Click
     if (this.hoverClose) {
+      this.core.audioManager.playSFX("click");
       this.close();
       return;
     }
@@ -202,6 +209,11 @@ export default class SettingsPopup {
         // 🔥 UPDATE CORE SETTINGS DIRECTLY
         if (this.core.settings) {
           this.core.settings[item.id] = Math.round(pct * 100);
+
+          // 🔥 FIXED: Notify Audio Manager
+          if (item.id.includes("Volume")) {
+            this.core.audioManager.updateVolumes();
+          }
         }
       }
     });
@@ -212,6 +224,7 @@ export default class SettingsPopup {
     if (mx >= toggleX && mx <= toggleX + t.w && my >= t.y && my <= t.y + t.h) {
       // 🔥 UPDATE CORE SETTINGS DIRECTLY
       if (this.core.settings) {
+        this.core.audioManager.playSFX("click");
         this.core.settings.fullscreen = !this.core.settings.fullscreen;
         if (this.core.settings.fullscreen) {
           if (document.documentElement.requestFullscreen)
