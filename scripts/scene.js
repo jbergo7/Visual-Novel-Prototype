@@ -60,6 +60,11 @@ export class Scene {
       await new Promise((resolve) => (this.image.onload = resolve));
     }
 
+    // 🔥 NEW: Check for Scene-level Music on Load
+    if (this.data.music) {
+      this.core.audioManager.playBGM(this.data.music);
+    }
+
     this.unload();
 
     this.clickHandler = (e) => {
@@ -116,12 +121,20 @@ export class Scene {
       this.resumeIndex = 0;
     }
 
-    // Fast forward logic
+    // Fast forward logic (Restore State Loop)
     let targetBg = initialBgId;
+
+    // 🔥 NEW: Track Music for Restore
+    let targetMusic = this.data.music || null;
+
     for (let i = 0; i <= this.currentLine; i++) {
       const dlg = this.dialogues[i];
       if (!dlg) continue;
       if (dlg.background) targetBg = dlg.background;
+
+      // Check music history
+      if (dlg.music) targetMusic = dlg.music;
+
       if (i < this.currentLine) {
         if (this.appliedStats[i]) this.applyStats(dlg, i, true);
         if (this.appliedChoiceStats[i])
@@ -130,6 +143,11 @@ export class Scene {
     }
 
     await this.changeBackground(targetBg, "none");
+
+    // 🔥 NEW: Ensure correct music is playing after restore
+    if (targetMusic) {
+      this.core.audioManager.playBGM(targetMusic);
+    }
 
     const current = this.dialogues[this.currentLine];
     if (current?.choices) this.choicesBox.setChoices(current.choices);
@@ -154,11 +172,27 @@ export class Scene {
     this.sprite.clear();
   }
 
+  // 🔥 NEW: Audio Helper
+  _triggerAudio(obj) {
+    if (!obj) return;
+    // 1. Music Change
+    if (obj.music) {
+      this.core.audioManager.playBGM(obj.music);
+    }
+    // 2. Sound Effects
+    if (obj.soundeffects) {
+      this.core.audioManager.playSFX(obj.soundeffects);
+    }
+  }
+
   async processLine() {
     if (this.currentLine < 0 || this.currentLine >= this.dialogues.length)
       return;
 
     const obj = this.dialogues[this.currentLine];
+
+    // 🔥 NEW: Trigger Audio for this line immediately
+    this._triggerAudio(obj);
 
     if (obj?.autosave) {
       this.core.saveloadHandler.autosave(this.core);
@@ -286,12 +320,25 @@ export class Scene {
 
     this.currentLine = targetIndex;
 
+    // Restore Background Logic
     let correctBg = this.data.background || "home";
+
+    // 🔥 NEW: Restore Music Logic (Backtracking)
+    let correctMusic = this.data.music || null;
+
     for (let i = 0; i <= this.currentLine; i++) {
       if (this.dialogues[i].background)
         correctBg = this.dialogues[i].background;
+      // Check latest music up to this point
+      if (this.dialogues[i].music) correctMusic = this.dialogues[i].music;
     }
+
     await this.changeBackground(correctBg, "none");
+
+    // 🔥 Play the corrected music
+    if (correctMusic) {
+      this.core.audioManager.playBGM(correctMusic);
+    }
 
     const prev = this.dialogues[this.currentLine];
     if (prev?.choices) {

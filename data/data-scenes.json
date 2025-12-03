@@ -1,6 +1,7 @@
 {
   "prologue": {
     "background": "home",
+    "music": "title_theme",
     "dialogues": [
       {
         "speaker": "[player]",
@@ -13,7 +14,8 @@
             "y": "bottom 600",
             "scale": 1.4
           }
-        ]
+        ],
+        "soundeffects": "click"
       },
       { "background": "kitchen" },
       {
@@ -31,6 +33,8 @@
           "height": 973,
           "transition": "fade"
         },
+        "music": "happy_vibe",
+        "soundeffects": "click",
         "autosave": true
       },
       { "background": "restroom", "transition": "fade", "autosave": true },
